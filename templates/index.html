@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROM VAULT // terminal access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-theme="green">
+
+  <div class="crt">
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="flicker" aria-hidden="true"></div>
+
+    <!-- Boot sequence overlay -->
+    <div id="boot" class="boot">
+      <pre id="boot-log" class="boot-log"></pre>
+    </div>
+
+    <!-- Main vault UI -->
+    <div id="vault" class="vault hidden">
+
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-icon">&#9632;</span> ROM VAULT <span class="brand-version">v2.0</span>
+        </div>
+        <div class="topbar-controls">
+          <span id="rom-count" class="stat">0 TITLES INDEXED</span>
+          <button id="view-toggle" class="btn-ghost" title="Switch list / grid view">[ GRID ]</button>
+          <button id="rescan-btn" class="btn-ghost" title="Rescan NAS library">[ RESCAN ]</button>
+          <button id="theme-toggle" class="btn-ghost" title="Switch phosphor color">[ AMBER ]</button>
+          {% if is_admin %}<a href="{{ url_for('admin_users') }}" class="btn-ghost" title="Manage users">[ USERS ]</a>{% endif %}
+          <span class="stat">{{ username }}</span>
+          <a href="{{ url_for('logout') }}" class="btn-ghost" title="Log out">[ LOGOUT ]</a>
+        </div>
+      </header>
+
+      <div class="prompt-bar">
+        <label class="prompt-label" for="search-input">C:\ROMS&gt;</label>
+        <input id="search-input" class="prompt-input" type="text" placeholder="search title..." autocomplete="off" spellcheck="false">
+        <span class="cursor-block" aria-hidden="true"></span>
+      </div>
+
+      <nav id="system-tabs" class="system-tabs" role="tablist" aria-label="Systems">
+        <button class="tab active" data-system="all" role="tab" aria-selected="true">
+          <span class="tab-icon" data-icon="all"></span>ALL
+        </button>
+        <button class="tab" data-system="favorites" role="tab" aria-selected="false">
+          <span class="tab-icon" data-icon="star"></span>FAVORITES
+        </button>
+        <button class="tab" data-system="recent" role="tab" aria-selected="false">
+          <span class="tab-icon" data-icon="clock"></span>RECENT
+        </button>
+        <!-- per-system tabs populated by JS -->
+      </nav>
+
+      <main class="listing-wrap">
+        <!-- LIST VIEW -->
+        <table id="list-view" class="listing">
+          <thead>
+            <tr>
+              <th class="col-art"></th>
+              <th class="col-title">TITLE</th>
+              <th class="col-system">SYSTEM</th>
+              <th class="col-size">SIZE</th>
+              <th class="col-actions">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="listing-body"></tbody>
+        </table>
+
+        <!-- GRID VIEW -->
+        <div id="grid-view" class="grid-view hidden"></div>
+
+        <p id="empty-state" class="empty-state hidden">
+          &gt;&gt; NO MATCHES FOUND. TRY A DIFFERENT QUERY OR CHECK NAS MOUNT.
+        </p>
+      </main>
+
+      <footer class="statusbar">
+        <span>NAS: <span id="mount-status">CONNECTED</span></span>
+        <span class="dot">&middot;</span>
+        <span>GC / WII: DOWNLOAD ONLY (NO BROWSER CORE)</span>
+      </footer>
+
+    </div>
+  </div>
+
+  <!-- Inline icon sprite sheet: monochrome, uses currentColor so it themes automatically -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="icon-cart" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12a1 1 0 0 1 1 1v3h-2V5H7v16h10v-2h2v3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 6h5v2h-5v3l4-2.5V15l-4-2.5V16h-2V9h2Z"/></symbol>
+      <symbol id="icon-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 14.9 8.6 22 9.3 16.7 14 18.2 21 12 17.4 5.8 21 7.3 14 2 9.3 9.1 8.6 12 2Z"/></symbol>
+      <symbol id="icon-star-outline" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.4" d="M12 2 14.9 8.6 22 9.3 16.7 14 18.2 21 12 17.4 5.8 21 7.3 14 2 9.3 9.1 8.6 12 2Z"/></symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/><path fill="none" stroke="currentColor" stroke-width="1.4" d="M12 7v5l3.5 2"/></symbol>
+      <symbol id="icon-all" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" fill="currentColor"/><rect x="14" y="3" width="7" height="7" fill="currentColor"/><rect x="3" y="14" width="7" height="7" fill="currentColor"/><rect x="14" y="14" width="7" height="7" fill="currentColor"/></symbol>
+    </defs>
+  </svg>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

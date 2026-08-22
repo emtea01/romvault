@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USER ADMIN // ROM VAULT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+  .admin-wrap { max-width: 720px; margin: 0 auto; padding: 24px 20px 60px; }
+  .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 28px; }
+  .admin-table th { text-align: left; color: var(--fg-dim); font-weight: normal; font-size: 11px; letter-spacing: 1px; border-bottom: 1px solid var(--fg-dim); padding: 6px 8px; }
+  .admin-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .admin-badge { color: var(--accent); font-size: 11px; }
+  .admin-form { border: 1px solid var(--fg-dim); padding: 16px; background: rgba(0,0,0,0.3); }
+  .admin-form label { display: block; font-size: 12px; color: var(--fg-dim); letter-spacing: 1px; margin-top: 10px; }
+  .admin-form input[type=text], .admin-form input[type=password] {
+    width: 100%; background: transparent; border: 1px solid var(--fg-dim); color: var(--fg-bright);
+    font-family: var(--font-body); font-size: 14px; padding: 7px 9px; margin-top: 4px;
+  }
+  .admin-checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .admin-checkbox-row label { margin: 0; }
+  .admin-submit { margin-top: 16px; background: transparent; border: 1px solid var(--fg); color: var(--fg);
+    font-family: var(--font-body); font-size: 13px; letter-spacing: 1px; padding: 8px 14px; cursor: pointer; }
+  .admin-submit:hover { background: var(--fg); color: var(--bg); }
+  .del-btn { background: transparent; border: 1px solid var(--fg-dim); color: var(--fg-dim);
+    font-family: var(--font-body); font-size: 11px; padding: 3px 8px; cursor: pointer; }
+  .del-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body data-theme="green">
+  <div class="crt">
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <div class="vault admin-wrap">
+      <header class="topbar">
+        <div class="brand"><span class="brand-icon">&#9632;</span> ROM VAULT <span class="brand-version">// USER ADMIN</span></div>
+        <a href="{{ url_for('index') }}" class="btn-ghost">[ &lt; BACK TO VAULT ]</a>
+      </header>
+
+      {% if error %}<p class="login-error">!! {{ error }}</p>{% endif %}
+
+      <table class="admin-table">
+        <thead>
+          <tr><th>USERNAME</th><th>ROLE</th><th>CREATED</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td class="rom-title">{{ u.username }}</td>
+            <td>{% if u.is_admin %}<span class="admin-badge">ADMIN</span>{% else %}USER{% endif %}</td>
+            <td class="stat">{{ u.created_at|int }}</td>
+            <td>
+              <form method="post" style="display:inline" onsubmit="return confirm('Delete user {{ u.username }}? This also deletes their favorites, recent list, and save states.');">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                <button type="submit" class="del-btn">DELETE</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="admin-form">
+        <p class="stat" style="margin:0 0 4px;">ADD A NEW ACCOUNT</p>
+        <form method="post">
+          <input type="hidden" name="action" value="add">
+          <label for="new-username">USERNAME</label>
+          <input type="text" id="new-username" name="username" minlength="3" maxlength="32" required>
+          <label for="new-password">PASSWORD</label>
+          <input type="password" id="new-password" name="password" minlength="8" required>
+          <div class="admin-checkbox-row">
+            <input type="checkbox" id="new-is-admin" name="is_admin">
+            <label for="new-is-admin" style="margin:0;">GRANT ADMIN (CAN MANAGE USERS)</label>
+          </div>
+          <button type="submit" class="admin-submit">[ CREATE ACCOUNT ]</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

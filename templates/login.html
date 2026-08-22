@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ 'SETUP' if mode == 'setup' else 'LOGIN' }} // ROM VAULT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-theme="green">
+  <div class="crt">
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <div class="login-wrap">
+      <div class="login-box">
+        <pre class="login-banner">ROM VAULT OS v1.0</pre>
+
+        {% if mode == 'setup' %}
+          <p class="login-msg">&gt;&gt; NO OPERATOR ACCOUNT FOUND.<br>&gt;&gt; CREATE THE FIRST (ADMIN) ACCOUNT TO CONTINUE.</p>
+          <form method="post" class="login-form" autocomplete="off">
+            <label class="login-label" for="username">USERNAME:</label>
+            <input class="login-input" type="text" id="username" name="username" minlength="3" maxlength="32" required autofocus>
+            <label class="login-label" for="password">SET PASSWORD:</label>
+            <input class="login-input" type="password" id="password" name="password" minlength="8" required>
+            <label class="login-label" for="password2">CONFIRM PASSWORD:</label>
+            <input class="login-input" type="password" id="password2" name="password2" minlength="8" required>
+            {% if error %}<p class="login-error">!! {{ error }}</p>{% endif %}
+            <button type="submit" class="login-submit">[ INITIALIZE VAULT ]</button>
+          </form>
+          <p class="login-hint">THIS BECOMES THE FIRST ADMIN ACCOUNT. YOU CAN ADD MORE
+          ACCOUNTS FOR OTHER PEOPLE AFTERWARD FROM THE ADMIN PANEL --
+          FAVORITES, RECENTLY PLAYED, AND SAVE STATES ARE ALL TIED TO
+          EACH INDIVIDUAL ACCOUNT AND FOLLOW YOU ACROSS DEVICES.</p>
+        {% else %}
+          <p class="login-msg">&gt;&gt; AUTHENTICATION REQUIRED</p>
+          <form method="post" class="login-form" autocomplete="off">
+            <label class="login-label" for="username">USERNAME:</label>
+            <input class="login-input" type="text" id="username" name="username" required autofocus>
+            <label class="login-label" for="password">PASSWORD:</label>
+            <input class="login-input" type="password" id="password" name="password" required>
+            {% if error %}<p class="login-error">!! {{ error }}</p>{% endif %}
+            <button type="submit" class="login-submit">[ CONNECT ]</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

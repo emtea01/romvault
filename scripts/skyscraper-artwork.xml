@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ROM Vault's Skyscraper artwork recipe.
+  We only want the raw box cover, undecorated, so ROM Vault can drop it
+  straight into a grid/list thumbnail. No compositing, no screenshot
+  collage, no gamebox 3D effect -- just the cover art as scraped.
+-->
+<artwork>
+  <output type="cover" resource="cover"/>
+</artwork>

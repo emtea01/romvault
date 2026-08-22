@@ -1,0 +1,24 @@
+[Unit]
+Description=ROM Vault - retro ROM browser and emulator front end
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/roms
+
+[Service]
+Type=simple
+User=romvault
+Group=romvault
+WorkingDirectory=/opt/romvault
+Environment=ROMS_PATH=/mnt/roms
+ExecStart=/opt/romvault/venv/bin/gunicorn -w 1 -b 0.0.0.0:5000 --timeout 1800 app:app
+Restart=on-failure
+RestartSec=5
+
+# Light sandboxing (unprivileged LXC already isolates most of this)
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/romvault
+ReadOnlyPaths=/mnt/roms
+
+[Install]
+WantedBy=multi-user.target

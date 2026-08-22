@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLAY // {{ title }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+  .play-wrap { max-width: 960px; margin: 0 auto; padding: 20px; }
+  .play-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  #game { width: 100%; min-height: 60vh; border: 1px solid var(--fg-dim); background: #000; }
+</style>
+</head>
+<body data-theme="green">
+  <div class="crt">
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <div class="vault play-wrap">
+      <header class="topbar">
+        <div class="brand"><span class="brand-icon">&#9632;</span> ROM VAULT <span class="brand-version">// EMULATION SESSION</span></div>
+        <a href="{{ url_for('index') }}" class="btn-ghost">[ &lt; BACK TO VAULT ]</a>
+      </header>
+
+      <div class="play-header">
+        <span class="stat">NOW PLAYING: {{ title }}</span>
+        <span class="stat">SYSTEM: {{ system|upper }}</span>
+      </div>
+
+      <div id="game"></div>
+
+      <p class="play-hint">
+        &gt;&gt; FULLSCREEN AND CONTROLS ARE IN THE PLAYER'S OWN MENU (GEAR
+        ICON, BOTTOM OF SCREEN). SAVE STATES SYNC TO YOUR ACCOUNT AND
+        FOLLOW YOU TO OTHER DEVICES <span id="save-status"></span>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const SAVESTATE_URL = {{ savestate_url|tojson }};
+
+    window.EJS_player = "#game";
+    window.EJS_gameUrl = "{{ rom_url }}";
+    window.EJS_core = "{{ core }}";
+    window.EJS_gameName = "{{ title }}";
+    // Unique per system+rom (filename, not the display title, since
+    // titles aren't guaranteed unique) so save states don't collide.
+    window.EJS_gameID = "{{ system }}:{{ filename }}";
+    window.EJS_pathtodata = "https://cdn.emulatorjs.org/{{ ejs_version }}/data/";
+    window.EJS_color = "#39ff6a";
+    window.EJS_startOnLoaded = true;
+
+    // Auto-load a previously saved state from your account, if one
+    // exists. EmulatorJS fetches this URL itself on game start; a 404
+    // (no save yet) is a completely normal "new game" case.
+    window.EJS_loadStateURL = SAVESTATE_URL;
+
+    // Whenever a save state is made (via the player's own Save State
+    // button), push it to your account so it follows you across devices.
+    window.EJS_onSaveState = async function (data) {
+      const statusEl = document.getElementById("save-status");
+      try {
+        const stateBytes = data && data.state ? data.state : data;
+        await fetch(SAVESTATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: stateBytes,
+        });
+        if (statusEl) {
+          statusEl.textContent = "-- SYNCED " + new Date().toLocaleTimeString();
+        }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = "-- SYNC FAILED (SAVED LOCALLY ONLY)";
+      }
+    };
+  </script>
+  <script src="https://cdn.emulatorjs.org/{{ ejs_version }}/data/loader.js"></script>
+</body>
+</html>
