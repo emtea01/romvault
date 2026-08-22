@@ -23,7 +23,7 @@ set -euo pipefail
 # with environment variables at run time, e.g.:
 #   NAS_ROMS_PATH=/mnt/pve/my-nas/roms bash -c "$(curl ...)"
 # ---------------------------------------------------------------------------
-GITHUB_REPO="${GITHUB_REPO:-https://github.com/CHANGE-ME/romvault.git}"
+GITHUB_REPO="${GITHUB_REPO:-https://github.com/enmtea01/romvault.git}"
 
 CTID="${CTID:-}"                          # empty = auto-pick next free ID
 HOSTNAME="${HOSTNAME:-romvault}"

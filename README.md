@@ -45,8 +45,7 @@ roms/
   wii/    *.iso  *.rvz  *.wbfs
 ```
 
-If your folders are named differently, either rename them to match, or
-tell me and I'll make the folder-to-system mapping configurable.
+
 
 ### Box art (optional)
 
@@ -75,18 +74,13 @@ steps 2-6 into one command — it creates the container, sets up both NAS
 bind mounts, clones this repo, and runs the installer inside it:
 
 ```bash
-NAS_ROMS_PATH=/mnt/pve/roms-nas bash -c "$(curl -fsSL https://raw.githubusercontent.com/YOUR-USERNAME/romvault/main/proxmox-install.sh)"
+NAS_ROMS_PATH=/mnt/pve/roms-nas bash -c "$(curl -fsSL https://raw.githubusercontent.com/emtea01/romvault/main/proxmox-install.sh)"
 ```
 
-Replace `YOUR-USERNAME` with wherever you've pushed this repo (see "Push
-to your own GitHub" below — you'll need to have done that first, since
-the script clones from your fork, not a canonical upstream one).
 
 **This script hasn't been run end-to-end against a real Proxmox host** —
 it's written carefully against documented `pct`/`pveam` behavior, but
-treat it as a strong first draft. Try it on a throwaway VMID and let me
-know what breaks. If you'd rather do it by hand (or something goes
-wrong), steps 1-6 below are the same process spelled out manually.
+treat it as a strong first draft.  steps 1-6 below are the same process spelled out manually.
 
 ---
 
@@ -355,9 +349,6 @@ On your very first visit, you'll land on a **SETUP** screen instead of the
 vault — create a username and password there (min. 8 characters). This
 becomes the first **admin** account.
 
-Unlike earlier versions of this project, everyone gets their own account
-now rather than sharing one password:
-
 - **Adding more accounts:** as an admin, click **[ USERS ]** in the top
   bar to open the admin panel — add an account per person, optionally
   granting admin (which just means they can also manage users).
@@ -371,7 +362,7 @@ now rather than sharing one password:
   (`EJS_loadStateURL`) that's documented but I haven't personally verified
   end-to-end against a live install — the save-and-upload half is tested
   and works, the auto-load-on-a-different-device half should work per
-  EmulatorJS's docs but is worth confirming yourself on the first try.
+  EmulatorJS's docs but is worth confirming on the first try.
 - **Forgot a password / need to reset one:** there's no self-service
   "forgot password" flow yet — an admin resets it by deleting and
   recreating that user's account from the admin panel (this does lose
@@ -389,42 +380,6 @@ Login attempts are rate-limited (5 tries per 5 minutes, then a 60-second
 lockout per IP) — this resets if the service restarts, and it's meant to
 slow down casual guessing on your LAN, not to withstand a determined
 attacker from the open internet.
-
----
-
-## Push to your own GitHub
-
-This whole project is meant to live in your own public (or private) repo
-so you can track changes and use the one-line installer above. From the
-`romvault` folder:
-
-```bash
-git init
-git add .
-git commit -m "ROM Vault iteration 4"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/romvault.git
-git push -u origin main
-```
-
-You'll need to create the (empty) repo on GitHub first — either via
-the web UI (github.com → New repository → don't initialize with a
-README/license/gitignore, since this folder already has its own), or
-with the GitHub CLI if you have it installed:
-```bash
-gh repo create romvault --public --source=. --remote=origin --push
-```
-
-After that, edit `GITHUB_REPO` near the top of `proxmox-install.sh` (and
-push that change) so the one-line installer points at your repo by
-default instead of needing the env var every time.
-
-**A couple of things NOT to commit** (already excluded via `.gitignore`,
-just flagging why): the `instance/` folder holds your session secret key
-and the SQLite database with everyone's password hashes, favorites, and
-save states — none of that belongs in git history, even a private repo.
-
----
 
 ## Notes & known limitations
 
@@ -459,12 +414,3 @@ save states — none of that belongs in git history, even a private repo.
   flag behaves differently in practice, tell me what you see and I'll
   adjust `scrape_art.sh`.
 
-## Ideas for iteration 5 (just say the word)
-
-- "Continue playing" — surface last few played titles on the home screen
-- Self-service password reset (currently admin-only via the users panel)
-- Per-user access levels (e.g. a kid-safe view with a curated subset)
-- Reverse proxy + HTTPS config included out of the box
-- A scheduled/cron version of `scrape_art.sh` so new ROMs get art automatically
-- Save-state screenshots (EmulatorJS provides one alongside each save;
-  currently ignored — could show a thumbnail on hover)
