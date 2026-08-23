@@ -1,6 +1,6 @@
 # Deploys the romvault folder straight to the LXC container over SSH,
 # then syncs it into /opt/romvault (where the systemd service actually
-# runs from) and restarts the service.
+# runs from), refreshes the systemd service file itself, and restarts.
 #
 # Usage:
 #   .\deploy.ps1 -ContainerIp 192.168.1.50
@@ -39,8 +39,8 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host ">> Syncing into /opt/romvault and restarting the service ..."
-ssh "root@${ContainerIp}" "cp -r /root/romvault-staging/. /opt/romvault/ && chown -R romvault:romvault /opt/romvault && systemctl restart romvault && systemctl is-active romvault"
+Write-Host ">> Syncing into /opt/romvault, refreshing the systemd service, and restarting ..."
+ssh "root@${ContainerIp}" "cp -r /root/romvault-staging/. /opt/romvault/ && chown -R romvault:romvault /opt/romvault && cp /opt/romvault/romvault.service /etc/systemd/system/romvault.service && systemctl daemon-reload && systemctl restart romvault && systemctl is-active romvault"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "!! Sync/restart failed -- SSH in manually and check 'systemctl status romvault'." -ForegroundColor Red
     exit 1

@@ -10,6 +10,7 @@ symlinks to the specific ROMs missing art, so Skyscraper only ever touches
 the actual gap -- faster repeat runs, and no reliance on Skyscraper's
 internal cache behavior to honor "skip what's already matched."
 """
+import fcntl
 import os
 import shutil
 import subprocess
@@ -85,11 +86,43 @@ def trigger(roms_root: str, boxart_root: str, missing_by_system: dict,
         _state.update({"running": True, "error": None, "warnings": [], "done": 0, "total": total, "system": None})
 
     threading.Thread(
-        target=_run,
+        target=_run_with_process_lock,
         args=(roms_root, boxart_root, missing_by_system, screenscraper_user, screenscraper_pass),
         daemon=True,
     ).start()
     return True
+
+
+def _run_with_process_lock(roms_root, boxart_root, missing_by_system, ss_user, ss_pass):
+    """The in-process 'running' flag above only guards against a second
+    call within the *same* Python process -- it can't see a scrape started
+    by a different gunicorn worker process, since each worker has its own
+    separate copy of that state entirely. An flock on a shared file is the
+    actual cross-process guard: whichever process gets it first proceeds,
+    any other process's non-blocking flock attempt fails immediately
+    rather than racing the first one (which previously caused two workers
+    to both scrape the same staging folder at once, corrupting each
+    other's in-flight run)."""
+    WORK_DIR.mkdir(parents=True, exist_ok=True)
+    lock_path = WORK_DIR / ".scrape.lock"
+    lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        _log("another process already holds the scrape lock -- skipping this trigger (expected, not an error, if multiple workers are running)")
+        os.close(lock_fd)
+        with _lock:
+            _state["running"] = False
+        return
+
+    try:
+        _run(roms_root, boxart_root, missing_by_system, ss_user, ss_pass)
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(lock_fd)
 
 
 def _run_skyscraper(args: list, system: str, phase: str):

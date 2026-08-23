@@ -28,7 +28,9 @@ echo ">> Syncing into ${APP_DIR} (venv/ and instance/ are left untouched)..."
 cp -r "${STAGING_DIR}/." "${APP_DIR}/"
 chown -R romvault:romvault "${APP_DIR}"
 
-echo ">> Restarting service..."
+echo ">> Refreshing systemd service file (in case it changed) and restarting..."
+cp "${APP_DIR}/romvault.service" /etc/systemd/system/romvault.service
+systemctl daemon-reload
 systemctl restart romvault
 systemctl is-active romvault
 
