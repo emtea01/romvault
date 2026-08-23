@@ -20,6 +20,13 @@ BOXART_ROOT="${ROMS_PATH}/boxart"
 WORK_DIR="/root/skyscraper-work"
 ARTWORK_XML="/root/.skyscraper/romvault-artwork.xml"
 
+# Called by full path deliberately, not by bare name -- `pct exec`'s PATH
+# is minimal (/sbin:/bin:/usr/sbin:/usr/bin) and doesn't include
+# /usr/local/bin, where the official installer puts Skyscraper. Bare
+# `Skyscraper` works fine in an interactive `pct enter` shell but silently
+# fails to resolve under `pct exec`.
+SKYSCRAPER_BIN="${SKYSCRAPER_BIN:-/usr/local/bin/Skyscraper}"
+
 ALL_SYSTEMS=(nes snes n64 gba nds gc wii)
 
 if [ "$#" -eq 0 ]; then
@@ -34,8 +41,9 @@ else
   SYSTEMS=("$@")
 fi
 
-if ! command -v Skyscraper >/dev/null 2>&1; then
-  echo "!! Skyscraper isn't installed. Run install_skyscraper.sh first."
+if [ ! -x "$SKYSCRAPER_BIN" ]; then
+  echo "!! Skyscraper isn't at $SKYSCRAPER_BIN. Run install_skyscraper.sh first,"
+  echo "!! or set SKYSCRAPER_BIN if it landed somewhere else."
   exit 1
 fi
 
@@ -66,14 +74,14 @@ for system in "${SYSTEMS[@]}"; do
   work_platform="${WORK_DIR}/${system}"
   mkdir -p "${work_platform}/media"
 
-  Skyscraper -p "${system}" -s screenscraper \
+  "$SKYSCRAPER_BIN" -p "${system}" -s screenscraper \
     -i "${rom_dir}" \
     "${CRED_ARGS[@]}" \
     --flags unattend \
     -t 4
 
   echo "=== ${system}: generating cover art ==="
-  Skyscraper -p "${system}" \
+  "$SKYSCRAPER_BIN" -p "${system}" \
     -i "${rom_dir}" \
     -g "${work_platform}" \
     -o "${work_platform}/media" \

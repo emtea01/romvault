@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SETTINGS // ROM VAULT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+  .settings-wrap { max-width: 640px; margin: 0 auto; padding: 24px 20px 60px; }
+  .settings-section { border: 1px solid var(--fg-dim); padding: 16px; background: rgba(0,0,0,0.3); margin-bottom: 20px; }
+  .settings-section h2 { font-family: var(--font-display); font-size: 20px; color: var(--fg-bright); margin: 0 0 4px; letter-spacing: 1px; }
+  .settings-hint { font-size: 11px; color: var(--fg-dim); line-height: 1.6; margin: 0 0 14px; }
+  .settings-section label { display: block; font-size: 12px; color: var(--fg-dim); letter-spacing: 1px; margin-top: 10px; }
+  .settings-section input[type=text], .settings-section input[type=password] {
+    width: 100%; background: transparent; border: 1px solid var(--fg-dim); color: var(--fg-bright);
+    font-family: var(--font-body); font-size: 14px; padding: 7px 9px; margin-top: 4px; box-sizing: border-box;
+  }
+  .settings-submit { margin-top: 18px; background: transparent; border: 1px solid var(--fg); color: var(--fg);
+    font-family: var(--font-body); font-size: 13px; letter-spacing: 1px; padding: 8px 14px; cursor: pointer; }
+  .settings-submit:hover { background: var(--fg); color: var(--bg); }
+  .status-line { font-size: 12px; letter-spacing: 0.5px; margin: 4px 0; }
+  .status-ok { color: var(--fg); }
+  .status-off { color: var(--fg-dim); }
+  .saved-msg { color: var(--fg); font-size: 12px; margin: 0 0 14px; }
+</style>
+</head>
+<body data-theme="green">
+  <div class="crt">
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <div class="vault settings-wrap">
+      <header class="topbar">
+        <div class="brand"><span class="brand-icon">&#9632;</span> ROM VAULT <span class="brand-version">// SETTINGS</span></div>
+        <a href="{{ url_for('index') }}" class="btn-ghost">[ &lt; BACK TO VAULT ]</a>
+        <a href="{{ url_for('admin_users') }}" class="btn-ghost">[ USERS ]</a>
+      </header>
+
+      {% if error %}<p class="login-error">!! {{ error }}</p>{% endif %}
+      {% if saved %}<p class="saved-msg">&gt;&gt; SETTINGS SAVED. LIBRARY RESCAN STARTED.</p>{% endif %}
+
+      <form method="post">
+        <div class="settings-section">
+          <h2>LIBRARY PATHS</h2>
+          <p class="settings-hint">
+            Where ROM Vault looks for your ROMs and box art, inside this
+            container. Changing these takes effect immediately, no restart
+            needed.
+          </p>
+
+          <label for="roms_path">ROMS ROOT FOLDER</label>
+          <input type="text" id="roms_path" name="roms_path" value="{{ settings.roms_path }}" placeholder="/mnt/roms">
+
+          <label for="boxart_path">BOX ART FOLDER</label>
+          <input type="text" id="boxart_path" name="boxart_path" value="{{ settings.boxart_path }}" placeholder="/mnt/roms/boxart">
+        </div>
+
+        <div class="settings-section">
+          <h2>SKYSCRAPER / SCREENSCRAPER</h2>
+          <p class="status-line {{ 'status-ok' if settings.skyscraper_available else 'status-off' }}">
+            SKYSCRAPER: {{ 'INSTALLED' if settings.skyscraper_available else 'NOT INSTALLED' }}
+          </p>
+          <p class="settings-hint">
+            {% if settings.skyscraper_available %}
+            When you hit [ RESCAN ], ROM Vault automatically scrapes box art
+            for any ROM that doesn't have it yet -- no separate terminal
+            step. A free ScreenScraper.fr account raises your rate limit
+            substantially; scraping works anonymously without one, just
+            slower.
+            {% else %}
+            Skyscraper isn't installed in this container. It's included by
+            default in fresh installs going forward -- if this is an
+            existing container from before that, see README.md for the
+            manual install step.
+            {% endif %}
+          </p>
+
+          <label for="screenscraper_user">SCREENSCRAPER USERNAME</label>
+          <input type="text" id="screenscraper_user" name="screenscraper_user" value="{{ settings.screenscraper_user }}" autocomplete="off">
+
+          <label for="screenscraper_pass">SCREENSCRAPER PASSWORD {% if settings.has_screenscraper_pass %}(SET -- LEAVE BLANK TO KEEP){% endif %}</label>
+          <input type="password" id="screenscraper_pass" name="screenscraper_pass" autocomplete="off" placeholder="{{ '••••••••' if settings.has_screenscraper_pass else '' }}">
+        </div>
+
+        <button type="submit" class="settings-submit">[ SAVE SETTINGS ]</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

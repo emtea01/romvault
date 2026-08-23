@@ -14,18 +14,33 @@ from flask import (
 )
 
 import db
+import scraper
 
 app = Flask(__name__)
 db.init_db()
 
 # ---------------------------------------------------------------------------
-# Config / paths
+# Config / paths -- resolved dynamically from admin settings (DB), falling
+# back to env vars, falling back to hardcoded defaults. Read fresh each
+# call (cheap local SQLite read) rather than cached at import time, so
+# changing them in the admin Settings screen takes effect immediately,
+# no service restart needed.
 # ---------------------------------------------------------------------------
-ROOT = Path(os.environ.get("ROMS_PATH", "/mnt/roms")).resolve()
+def roms_root() -> Path:
+    configured = db.get_setting("roms_path")
+    return Path(configured or os.environ.get("ROMS_PATH", "/mnt/roms")).resolve()
 
-# Where box art is expected: BOXART_ROOT/<system>/<rom-basename-without-ext>.<ext>
-# e.g. /mnt/roms/boxart/nes/legend_of_zelda.png  next to /mnt/roms/nes/Legend_of_Zelda.nes
-BOXART_ROOT = Path(os.environ.get("BOXART_PATH", str(ROOT / "boxart"))).resolve()
+
+def boxart_root() -> Path:
+    configured = db.get_setting("boxart_path")
+    if configured:
+        return Path(configured).resolve()
+    env_val = os.environ.get("BOXART_PATH")
+    if env_val:
+        return Path(env_val).resolve()
+    return (roms_root() / "boxart").resolve()
+
+
 BOXART_EXTS = [".png", ".jpg", ".jpeg", ".webp"]
 
 # Instance dir holds the app's own state: session secret key + the SQLite
@@ -162,7 +177,7 @@ def _build_boxart_index(system: str):
     did up to ~20 individual filesystem lookups *per ROM*.
     """
     index = {}
-    system_art_dir = BOXART_ROOT / system
+    system_art_dir = boxart_root() / system
     if not system_art_dir.is_dir():
         return index
 
@@ -197,7 +212,7 @@ def _run_scan():
     library = []
     try:
         for system_key, meta in SYSTEMS.items():
-            system_dir = ROOT / system_key
+            system_dir = roms_root() / system_key
             if not system_dir.is_dir():
                 continue
 
@@ -235,6 +250,8 @@ def _run_scan():
             _cache["data"] = library
             _cache["ts"] = time.time()
             _cache["error"] = None
+
+        _maybe_trigger_scrape(library)
     except Exception as e:
         app.logger.error(f"Library scan failed: {e}\n{traceback.format_exc()}")
         with _cache_lock:
@@ -242,6 +259,42 @@ def _run_scan():
     finally:
         with _cache_lock:
             _cache["scanning"] = False
+
+
+def _maybe_trigger_scrape(library):
+    """After a scan completes, kick off an incremental Skyscraper scrape
+    for anything still missing art -- only if Skyscraper is installed.
+    Fully optional; silently does nothing if it's not set up."""
+    if not scraper.skyscraper_available():
+        return
+
+    missing_by_system = {}
+    for rom in library:
+        if not rom["art_url"]:
+            missing_by_system.setdefault(rom["system"], []).append(rom["filename"])
+
+    if not missing_by_system:
+        return
+
+    ss_user = db.get_setting("screenscraper_user", "")
+    ss_pass = db.get_setting("screenscraper_pass", "")
+    started = scraper.trigger(
+        str(roms_root()), str(boxart_root()), missing_by_system, ss_user, ss_pass
+    )
+    if started:
+        total = sum(len(v) for v in missing_by_system.values())
+        app.logger.info(f"Box art scrape started for {total} roms missing art")
+        threading.Thread(target=_watch_scrape_then_rescan, daemon=True).start()
+
+
+def _watch_scrape_then_rescan():
+    """Newly-scraped art won't show up in art_url until another library
+    scan runs (art_url is computed at walk time). Poll until scraping
+    finishes, then trigger one more scan automatically so results appear
+    without needing a second manual RESCAN click."""
+    while scraper.status()["running"]:
+        time.sleep(5)
+    scan_library(force=True)
 
 
 def scan_library(force: bool = False):
@@ -275,7 +328,7 @@ def _resolve_within(base_dir: Path, filename: str) -> Path:
 def _resolve_rom_path(system: str, filename: str) -> Path:
     if system not in SYSTEMS:
         abort(404)
-    return _resolve_within(ROOT / system, filename)
+    return _resolve_within(roms_root() / system, filename)
 
 
 def _human_size(n: int) -> str:
@@ -389,6 +442,45 @@ def admin_users():
     return render_template("admin_users.html", users=db.list_users(), error=error)
 
 
+@app.route("/admin/settings", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_settings():
+    error = None
+    saved = False
+
+    if request.method == "POST":
+        new_roms_path = request.form.get("roms_path", "").strip()
+        new_boxart_path = request.form.get("boxart_path", "").strip()
+        new_ss_user = request.form.get("screenscraper_user", "").strip()
+        new_ss_pass = request.form.get("screenscraper_pass", "")
+
+        if new_roms_path and not Path(new_roms_path).is_dir():
+            error = f"ROMS PATH DOES NOT EXIST OR ISN'T A DIRECTORY: {new_roms_path}"
+        elif new_boxart_path and not Path(new_boxart_path).parent.is_dir():
+            error = f"BOXART PATH'S PARENT DOESN'T EXIST: {new_boxart_path}"
+        else:
+            db.set_setting("roms_path", new_roms_path)
+            db.set_setting("boxart_path", new_boxart_path)
+            db.set_setting("screenscraper_user", new_ss_user)
+            # Only overwrite the stored password if a new one was actually
+            # typed -- the form never echoes the real password back, so a
+            # blank submit here should leave the existing one untouched.
+            if new_ss_pass:
+                db.set_setting("screenscraper_pass", new_ss_pass)
+            scan_library(force=True)
+            saved = True
+
+    settings = {
+        "roms_path": db.get_setting("roms_path", "") or str(roms_root()),
+        "boxart_path": db.get_setting("boxart_path", "") or str(boxart_root()),
+        "screenscraper_user": db.get_setting("screenscraper_user", ""),
+        "has_screenscraper_pass": bool(db.get_setting("screenscraper_pass", "")),
+        "skyscraper_available": scraper.skyscraper_available(),
+    }
+    return render_template("admin_settings.html", settings=settings, error=error, saved=saved)
+
+
 # ---------------------------------------------------------------------------
 # App routes
 # ---------------------------------------------------------------------------
@@ -436,6 +528,14 @@ def api_scan_status():
         "last_scan": _cache["ts"],
         "error": _cache["error"],
     })
+
+
+@app.route("/api/scrape-status")
+@login_required
+def api_scrape_status():
+    s = scraper.status()
+    s["available"] = scraper.skyscraper_available()
+    return jsonify(s)
 
 
 @app.route("/api/rescan", methods=["POST"])
@@ -509,7 +609,7 @@ def raw_rom(system, filename):
 def boxart(system, filename):
     if system not in SYSTEMS:
         abort(404)
-    path = _resolve_within(BOXART_ROOT / system, filename)
+    path = _resolve_within(boxart_root() / system, filename)
     return send_file(path, as_attachment=False, conditional=True)
 
 

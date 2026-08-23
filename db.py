@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS savestates (
     updated_at REAL NOT NULL,
     PRIMARY KEY (user_id, system, filename)
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 
@@ -225,3 +230,30 @@ def put_savestate(user_id: int, system: str, filename: str, state_bytes: bytes):
             "state = excluded.state, updated_at = excluded.updated_at",
             (user_id, system, filename, state_bytes, time.time()),
         )
+
+
+# ---------------------------------------------------------------------------
+# Settings -- admin-configurable, override env-var defaults when set.
+# Currently used for: roms_path, boxart_path, screenscraper_user,
+# screenscraper_pass. Anything not set here falls back to env vars /
+# hardcoded defaults, handled by the caller (see app.py's roms_root() etc).
+# ---------------------------------------------------------------------------
+def get_setting(key: str, default=None):
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row and row["value"] not in (None, "") else default
+
+
+def set_setting(key: str, value):
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+
+
+def get_all_settings() -> dict:
+    with get_db() as conn:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        return {r["key"]: r["value"] for r in rows}

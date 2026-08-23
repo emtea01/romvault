@@ -164,6 +164,20 @@
           await loadSystems();
           await loadLibrary();
         }, 4000);
+        return;
+      }
+
+      // Not scanning the filesystem anymore -- check whether a box art
+      // scrape is running (auto-triggered after rescan when Skyscraper's
+      // installed) and reflect that instead.
+      const scrapeRes = await fetch("/api/scrape-status");
+      const scrape = await scrapeRes.json();
+      if (scrape.running) {
+        const sys = scrape.system ? ` (${scrape.system.toUpperCase()})` : "";
+        romCount.textContent = `FETCHING BOX ART${sys}: ${scrape.done}/${scrape.total}`;
+        scanPollTimer = setTimeout(async () => {
+          await loadLibrary();
+        }, 4000);
       }
     } catch (e) {
       // Non-fatal -- just stop polling silently.

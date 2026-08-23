@@ -17,19 +17,26 @@ set -euo pipefail
 echo ">> Installing build dependencies (this can take a few minutes)..."
 apt-get update
 apt-get install -y git build-essential qtbase5-dev qtbase5-dev-tools \
-  libqt5sql5-sqlite qt5-qmake curl ca-certificates
+  libqt5sql5-sqlite qt5-qmake curl ca-certificates sudo
 
 echo ">> Building and installing Skyscraper via the official installer script..."
 mkdir -p /root/skysource
 cd /root/skysource
 curl -fsSL https://raw.githubusercontent.com/muldjord/skyscraper/master/update_skyscraper.sh | bash
 
-if ! command -v Skyscraper >/dev/null 2>&1; then
-  echo "!! Skyscraper doesn't appear on PATH after install."
-  echo "!! Check /root/skysource for build errors, or try:"
-  echo "!!   ln -s /root/skysource/Skyscraper/Skyscraper /usr/local/bin/Skyscraper"
+# Check the actual install path directly rather than `command -v`/PATH --
+# the official installer puts the binary at /usr/local/bin/Skyscraper,
+# but `pct exec`'s minimal PATH (/sbin:/bin:/usr/sbin:/usr/bin) doesn't
+# include /usr/local/bin, so a PATH-based check gives a false negative
+# even when the install succeeded.
+if [ ! -x /usr/local/bin/Skyscraper ]; then
+  echo "!! Skyscraper doesn't appear to be at /usr/local/bin/Skyscraper after install."
+  echo "!! Check /root/skysource for build errors. If it landed somewhere else, find it with:"
+  echo "!!   find / -xdev -name Skyscraper -type f 2>/dev/null"
   exit 1
 fi
+
+echo ">> Skyscraper installed at /usr/local/bin/Skyscraper"
 
 echo ">> Installing ROM Vault's cover-only artwork recipe..."
 mkdir -p /root/.skyscraper

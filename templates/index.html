@@ -33,6 +33,7 @@
           <button id="rescan-btn" class="btn-ghost" title="Rescan NAS library">[ RESCAN ]</button>
           <button id="theme-toggle" class="btn-ghost" title="Switch phosphor color">[ AMBER ]</button>
           {% if is_admin %}<a href="{{ url_for('admin_users') }}" class="btn-ghost" title="Manage users">[ USERS ]</a>{% endif %}
+          {% if is_admin %}<a href="{{ url_for('admin_settings') }}" class="btn-ghost" title="Settings">[ SETTINGS ]</a>{% endif %}
           <span class="stat">{{ username }}</span>
           <a href="{{ url_for('logout') }}" class="btn-ghost" title="Log out">[ LOGOUT ]</a>
         </div>

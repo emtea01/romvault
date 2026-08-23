@@ -38,6 +38,7 @@
       <header class="topbar">
         <div class="brand"><span class="brand-icon">&#9632;</span> ROM VAULT <span class="brand-version">// USER ADMIN</span></div>
         <a href="{{ url_for('index') }}" class="btn-ghost">[ &lt; BACK TO VAULT ]</a>
+        <a href="{{ url_for('admin_settings') }}" class="btn-ghost">[ SETTINGS ]</a>
       </header>
 
       {% if error %}<p class="login-error">!! {{ error }}</p>{% endif %}
