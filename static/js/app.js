@@ -43,6 +43,7 @@
   // Favorites / recent (server-side, tied to your account)
   // -------------------------------------------------------------------
   function romKey(rom) { return `${rom.system}:${rom.filename}`; }
+  function detailUrl(rom) { return `/game/${rom.system}/${encodeURIComponent(rom.filename)}`; }
 
   function isFavorite(rom) {
     return favoriteKeys.has(romKey(rom));
@@ -119,6 +120,7 @@
   // Data loading
   // -------------------------------------------------------------------
   let scanPollTimer = null;
+  let warningsShown = false;  // reset to false whenever a new scrape starts
 
   async function loadSystems() {
     try {
@@ -173,11 +175,21 @@
       const scrapeRes = await fetch("/api/scrape-status");
       const scrape = await scrapeRes.json();
       if (scrape.running) {
+        warningsShown = false;
         const sys = scrape.system ? ` (${scrape.system.toUpperCase()})` : "";
         romCount.textContent = `FETCHING BOX ART${sys}: ${scrape.done}/${scrape.total}`;
         scanPollTimer = setTimeout(async () => {
           await loadLibrary();
         }, 4000);
+      } else if (scrape.warnings && scrape.warnings.length > 0 && !warningsShown) {
+        // Scrape just finished but hit issues (e.g. Skyscraper exited
+        // non-zero, or produced no art) -- surface it rather than
+        // silently going back to normal. Shown once per scrape run
+        // (tracked via last_run) so it doesn't reappear on every poll.
+        warningsShown = true;
+        console.warn("Box art scrape warnings:", scrape.warnings);
+        mountStatus.textContent = `ART SCRAPE: ${scrape.warnings.length} ISSUE(S) -- SEE BROWSER CONSOLE`;
+        mountStatus.title = scrape.warnings.join("\n");
       }
     } catch (e) {
       // Non-fatal -- just stop polling silently.
@@ -278,7 +290,7 @@
 
       const tdArt = document.createElement("td");
       tdArt.className = "col-art";
-      tdArt.innerHTML = artThumbHtml(rom, "thumb", "thumb-fallback");
+      tdArt.innerHTML = `<a href="${detailUrl(rom)}" class="thumb-link" title="View details">${artThumbHtml(rom, "thumb", "thumb-fallback")}</a>`;
       tr.appendChild(tdArt);
 
       const tdTitle = document.createElement("td");
@@ -288,7 +300,7 @@
         <button class="star-btn${fav ? " active" : ""}" data-action="fav" title="Toggle favorite">
           ${iconSvg(fav ? "star" : "star-outline")}
         </button>
-        <span>${escapeHtml(rom.title)}</span>
+        <a class="title-link" href="${detailUrl(rom)}">${escapeHtml(rom.title)}</a>
         ${rom.category ? `<span class="rom-category">${escapeHtml(rom.category)}</span>` : ""}`;
       tdTitle.querySelector('[data-action="fav"]').addEventListener("click", async () => {
         await toggleFavorite(rom);
@@ -324,14 +336,15 @@
       card.className = "grid-card";
 
       const artWrap = document.createElement("div");
-      artWrap.innerHTML = artThumbHtml(rom, "grid-card-art", "grid-card-art-fallback");
+      artWrap.innerHTML = `<a href="${detailUrl(rom)}" class="thumb-link" title="View details">${artThumbHtml(rom, "grid-card-art", "grid-card-art-fallback")}</a>`;
       card.appendChild(artWrap.firstElementChild);
 
       const body = document.createElement("div");
       body.className = "grid-card-body";
 
-      const title = document.createElement("div");
-      title.className = "grid-card-title";
+      const title = document.createElement("a");
+      title.className = "grid-card-title title-link";
+      title.href = detailUrl(rom);
       title.textContent = rom.title;
       body.appendChild(title);
 

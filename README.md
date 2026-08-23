@@ -355,6 +355,19 @@ If that connects, updates are ready to go. If not, run `apt-get install
   dest/` merge leaves those alone). Worth saving as a two-line
   `deploy.sh` for frequent use.
 
+- **From a phone, or anywhere without a local copy of the repo:** since
+  the repo is on GitHub, the container can pull its own update directly
+  — no file transfer from a client machine needed at all. From a shell
+  *inside* the container (the Proxmox web UI's Shell tab works fine from
+  a phone browser, no app install needed):
+  ```bash
+  bash <(curl -fsSL https://raw.githubusercontent.com/YOUR-USERNAME/romvault/main/redeploy.sh)
+  ```
+  (Set `GITHUB_REPO` inside `redeploy.sh` once, same as `proxmox-install.sh`,
+  so the URL above works without an env var every time.) This clones fresh
+  from GitHub, merges into `/opt/romvault` the same safe way as above, and
+  restarts the service — one command, no Windows/Mac tooling required.
+
 ---
 
 ## Accounts, favorites, recent, and save states

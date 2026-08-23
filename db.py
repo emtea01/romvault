@@ -53,6 +53,22 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS game_metadata (
+    system TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    developer TEXT,
+    publisher TEXT,
+    genre TEXT,
+    players TEXT,
+    release_date TEXT,
+    rating REAL,
+    screenshot_url TEXT,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY (system, filename)
+);
 """
 
 
@@ -257,3 +273,38 @@ def get_all_settings() -> dict:
     with get_db() as conn:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
         return {r["key"]: r["value"] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Game metadata -- scraped from Skyscraper's gamelist.xml (description,
+# genre, developer, publisher, release date, rating, screenshot). Shared
+# library data, not per-user, unlike favorites/recent/savestates above.
+# ---------------------------------------------------------------------------
+def upsert_game_metadata(system: str, filename: str, **fields):
+    """fields: any of title, description, developer, publisher, genre,
+    players, release_date, rating, screenshot_url."""
+    allowed = {"title", "description", "developer", "publisher", "genre",
+               "players", "release_date", "rating", "screenshot_url"}
+    fields = {k: v for k, v in fields.items() if k in allowed}
+    if not fields:
+        return
+    columns = list(fields.keys())
+    placeholders = ", ".join("?" for _ in columns)
+    col_list = ", ".join(columns)
+    update_clause = ", ".join(f"{c} = excluded.{c}" for c in columns)
+    with get_db() as conn:
+        conn.execute(
+            f"INSERT INTO game_metadata (system, filename, {col_list}, updated_at) "
+            f"VALUES (?, ?, {placeholders}, ?) "
+            f"ON CONFLICT(system, filename) DO UPDATE SET {update_clause}, updated_at = excluded.updated_at",
+            (system, filename, *fields.values(), time.time()),
+        )
+
+
+def get_game_metadata(system: str, filename: str):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM game_metadata WHERE system = ? AND filename = ?",
+            (system, filename),
+        ).fetchone()
+        return dict(row) if row else None

@@ -13,15 +13,29 @@ internal cache behavior to honor "skip what's already matched."
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import traceback
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import db
+
 SKYSCRAPER_BIN = os.environ.get("SKYSCRAPER_BIN", "/usr/local/bin/Skyscraper")
-WORK_DIR = Path(os.environ.get("SKYSCRAPER_WORK_DIR", "/root/skyscraper-work"))
-ARTWORK_XML = Path(os.environ.get("SKYSCRAPER_ARTWORK_XML", "/root/.skyscraper/romvault-artwork.xml"))
+
+# Both default to locations under /opt/romvault -- which the romvault
+# service user actually owns -- rather than /root, which only root (the
+# manual pct exec/enter workflow) can write to. Skyscraper itself also
+# reads its own config/cache from $HOME/.skyscraper/, so subprocess calls
+# below explicitly override HOME to match (see _run_skyscraper).
+SKYSCRAPER_HOME = Path(os.environ.get("SKYSCRAPER_HOME", "/opt/romvault/skyscraper-home"))
+WORK_DIR = Path(os.environ.get("SKYSCRAPER_WORK_DIR", "/opt/romvault/skyscraper-work"))
+ARTWORK_XML = Path(os.environ.get(
+    "SKYSCRAPER_ARTWORK_XML", str(SKYSCRAPER_HOME / ".skyscraper" / "romvault-artwork.xml")
+))
 BOXART_EXTS = (".png", ".jpg", ".jpeg")
+SUBPROCESS_TIMEOUT_SECONDS = 1800  # safety net against a hung Skyscraper process
 
 _state = {
     "running": False,
@@ -29,9 +43,17 @@ _state = {
     "done": 0,
     "total": 0,
     "error": None,
+    "warnings": [],   # rolling list of per-system issues from the most recent run
     "last_run": 0,
 }
 _lock = threading.Lock()
+
+
+def _log(msg: str):
+    """Goes to stderr, which journald/systemctl captures the same way it
+    already captures gunicorn's own output -- visible via
+    `journalctl -u romvault` without any extra logging config."""
+    print(f"[scraper] {msg}", file=sys.stderr, flush=True)
 
 
 def skyscraper_available() -> bool:
@@ -60,7 +82,7 @@ def trigger(roms_root: str, boxart_root: str, missing_by_system: dict,
     with _lock:
         if _state["running"]:
             return False
-        _state.update({"running": True, "error": None, "done": 0, "total": total, "system": None})
+        _state.update({"running": True, "error": None, "warnings": [], "done": 0, "total": total, "system": None})
 
     threading.Thread(
         target=_run,
@@ -68,6 +90,47 @@ def trigger(roms_root: str, boxart_root: str, missing_by_system: dict,
         daemon=True,
     ).start()
     return True
+
+
+def _run_skyscraper(args: list, system: str, phase: str):
+    """Runs one Skyscraper invocation with output captured and logged.
+    Never raises on a non-zero exit or a hang -- returns None on either,
+    and records a diagnosable warning either way, so one bad system never
+    kills the rest of a multi-system scrape run."""
+    _log(f"{system} [{phase}]: running: {' '.join(args)}")
+    env = {**os.environ, "HOME": str(SKYSCRAPER_HOME)}
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS, env=env
+        )
+    except subprocess.TimeoutExpired:
+        msg = f"{system} [{phase}]: timed out after {SUBPROCESS_TIMEOUT_SECONDS}s"
+        _log(msg)
+        with _lock:
+            _state["warnings"].append(msg)
+        return None
+    except OSError as e:
+        msg = f"{system} [{phase}]: failed to launch Skyscraper: {e}"
+        _log(msg)
+        with _lock:
+            _state["warnings"].append(msg)
+        return None
+
+    tail_out = (result.stdout or "").strip()[-800:]
+    tail_err = (result.stderr or "").strip()[-800:]
+    if result.returncode != 0:
+        msg = f"{system} [{phase}]: Skyscraper exited {result.returncode}"
+        if tail_err:
+            msg += f" -- stderr: {tail_err}"
+        elif tail_out:
+            msg += f" -- output: {tail_out}"
+        _log(msg)
+        with _lock:
+            _state["warnings"].append(msg)
+    else:
+        _log(f"{system} [{phase}]: exited 0" + (f" -- {tail_out[-200:]}" if tail_out else ""))
+
+    return result
 
 
 def _run(roms_root, boxart_root, missing_by_system, ss_user, ss_pass):
@@ -121,35 +184,127 @@ def _scrape_one_system(roms_root, boxart_root, system, filenames, ss_user, ss_pa
             continue
 
     if not linked_any:
+        msg = f"{system}: none of the {len(filenames)} missing rom(s) could be found/symlinked -- ROMs may have been moved or renamed since the last library scan"
+        _log(msg)
+        with _lock:
+            _state["warnings"].append(msg)
         return
 
     cred_args = []
     if ss_user and ss_pass:
         cred_args = ["-u", f"{ss_user}:{ss_pass}"]
 
-    subprocess.run(
+    _run_skyscraper(
         [SKYSCRAPER_BIN, "-p", system, "-s", "screenscraper",
          "-i", str(staging), *cred_args, "--flags", "unattend", "-t", "4"],
-        check=False,
+        system, "gather",
     )
 
-    subprocess.run(
+    _run_skyscraper(
         [SKYSCRAPER_BIN, "-p", system,
          "-i", str(staging),
          "-g", str(gamelist_dir),
          "-o", str(media_dir),
          "-a", str(ARTWORK_XML),
          "--flags", "forcefilename,nobrackets,unattend,skipexistingcovers"],
-        check=False,
+        system, "generate",
     )
 
     dest = Path(boxart_root) / system
     dest.mkdir(parents=True, exist_ok=True)
+    copied = 0
     for img in media_dir.rglob("*"):
         if img.is_file() and img.suffix.lower() in BOXART_EXTS:
+            # Preserve the type subfolder (covers/, screenshots/) rather
+            # than flattening everything into one directory -- cover and
+            # screenshot share the same base filename (forcefilename), so
+            # flattening them together would make one silently overwrite
+            # the other.
+            subfolder = img.parent.name
+            target_dir = dest / subfolder
+            target_dir.mkdir(parents=True, exist_ok=True)
             try:
-                shutil.copy2(img, dest / img.name)
+                shutil.copy2(img, target_dir / img.name)
+                copied += 1
             except OSError:
                 continue
 
+    if copied == 0:
+        msg = f"{system}: ran against {len(filenames)} rom(s) but produced no art files -- check ScreenScraper credentials/rate limit, or that these titles actually exist in ScreenScraper's database"
+        _log(msg)
+        with _lock:
+            _state["warnings"].append(msg)
+    else:
+        _log(f"{system}: {copied} art file(s) copied to {dest}")
+
+    _parse_and_store_metadata(system, gamelist_dir, boxart_root)
+
     shutil.rmtree(staging, ignore_errors=True)
+
+
+def _parse_and_store_metadata(system, gamelist_dir, boxart_root):
+    """Skyscraper's generate phase already writes a gamelist.xml (standard
+    EmulationStation format) alongside the media it produces -- this was
+    previously just discarded. Parses it and stores description, genre,
+    developer, publisher, release date, and rating per ROM, plus links up
+    the screenshot copied above."""
+    gamelist_path = gamelist_dir / "gamelist.xml"
+    if not gamelist_path.is_file():
+        return
+
+    try:
+        tree = ET.parse(gamelist_path)
+    except ET.ParseError as e:
+        msg = f"{system}: gamelist.xml failed to parse: {e}"
+        _log(msg)
+        with _lock:
+            _state["warnings"].append(msg)
+        return
+
+    screenshots_dir = Path(boxart_root) / system / "screenshots"
+    stored = 0
+
+    for game in tree.getroot().findall("game"):
+        path_el = game.find("path")
+        if path_el is None or not path_el.text:
+            continue
+        filename = path_el.text
+        if filename.startswith("./"):
+            filename = filename[2:]
+
+        def _text(tag):
+            el = game.find(tag)
+            return el.text.strip() if el is not None and el.text else None
+
+        rating = None
+        rating_raw = _text("rating")
+        if rating_raw:
+            try:
+                rating = float(rating_raw)
+            except ValueError:
+                rating = None
+
+        stem = Path(filename).stem
+        screenshot_url = None
+        for ext in BOXART_EXTS:
+            candidate = screenshots_dir / f"{stem}{ext}"
+            if candidate.is_file():
+                screenshot_url = f"/boxart/{system}/screenshots/{stem}{ext}"
+                break
+
+        db.upsert_game_metadata(
+            system, filename,
+            title=_text("name"),
+            description=_text("desc"),
+            developer=_text("developer"),
+            publisher=_text("publisher"),
+            genre=_text("genre"),
+            players=_text("players"),
+            release_date=_text("releasedate"),
+            rating=rating,
+            screenshot_url=screenshot_url,
+        )
+        stored += 1
+
+    if stored:
+        _log(f"{system}: stored metadata for {stored} game(s) from gamelist.xml")

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }} // ROM VAULT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+  .detail-wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
+  .detail-grid { display: grid; grid-template-columns: 220px 1fr; gap: 24px; margin-top: 10px; }
+  @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
+
+  .detail-cover { width: 100%; border: 1px solid var(--fg-dim); background: var(--bg-alt); display: block; }
+  .detail-cover-fallback {
+    width: 100%; aspect-ratio: 3/4; border: 1px solid var(--fg-dim); background: var(--bg-alt);
+    display: flex; align-items: center; justify-content: center; color: var(--fg-dim);
+  }
+  .detail-cover-fallback svg { width: 35%; height: 35%; }
+
+  .detail-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .detail-actions .action-link { margin-left: 0; flex: 1; text-align: center; padding: 8px; font-size: 13px; }
+  .detail-star { width: 100%; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: transparent; border: 1px solid var(--fg-dim); color: var(--fg-dim); padding: 7px; cursor: pointer;
+    font-family: var(--font-body); font-size: 12px; letter-spacing: 1px; }
+  .detail-star svg { width: 14px; height: 14px; }
+  .detail-star.active { color: var(--accent); border-color: var(--accent); }
+
+  .detail-title { font-family: var(--font-display); font-size: 34px; color: var(--fg-bright);
+    text-shadow: 0 0 6px var(--fg); margin: 0 0 4px; line-height: 1.1; }
+  .detail-meta-line { color: var(--fg-dim); font-size: 12px; letter-spacing: 1px; margin-bottom: 16px; }
+  .detail-meta-line span + span::before { content: " // "; }
+
+  .detail-field { margin-bottom: 12px; }
+  .detail-field-label { font-size: 11px; color: var(--fg-dim); letter-spacing: 1px; margin-bottom: 2px; }
+  .detail-field-value { font-size: 14px; color: var(--fg-bright); line-height: 1.6; }
+
+  .detail-rating { color: var(--accent); }
+
+  .detail-screenshot { width: 100%; border: 1px solid var(--fg-dim); margin-top: 16px; display: block; }
+
+  .detail-empty-meta { color: var(--fg-dim); font-size: 12px; line-height: 1.7; border: 1px solid var(--fg-dim);
+    padding: 12px; margin-top: 6px; }
+</style>
+</head>
+<body data-theme="green">
+  <div class="crt">
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <div class="vault detail-wrap">
+      <header class="topbar">
+        <div class="brand"><span class="brand-icon">&#9632;</span> ROM VAULT</div>
+        <a href="{{ url_for('index') }}" class="btn-ghost">[ &lt; BACK TO VAULT ]</a>
+      </header>
+
+      <div class="detail-grid">
+        <div>
+          {% if art_url %}
+          <img class="detail-cover" src="{{ art_url }}" alt="" onerror="this.outerHTML=document.getElementById('cover-fallback-tpl').innerHTML;">
+          {% else %}
+          <div class="detail-cover-fallback">
+            <svg viewBox="0 0 24 24"><use href="#icon-cart"></use></svg>
+          </div>
+          {% endif %}
+
+          <div class="detail-actions">
+            {% if playable %}
+            <a class="action-link" href="{{ url_for('play', system=system, filename=filename) }}">PLAY</a>
+            {% else %}
+            <a class="action-link disabled" href="#" aria-disabled="true" title="No browser emulator core for this system yet">PLAY</a>
+            {% endif %}
+            <a class="action-link" href="{{ url_for('download', system=system, filename=filename) }}">GET</a>
+          </div>
+
+          <button id="fav-btn" class="detail-star{{ ' active' if is_favorite else '' }}" data-system="{{ system }}" data-filename="{{ filename }}">
+            <svg viewBox="0 0 24 24"><use href="#icon-{{ 'star' if is_favorite else 'star-outline' }}"></use></svg>
+            <span id="fav-label">{{ 'FAVORITED' if is_favorite else 'ADD TO FAVORITES' }}</span>
+          </button>
+        </div>
+
+        <div>
+          <h1 class="detail-title">{{ title }}</h1>
+          <div class="detail-meta-line">
+            <span>{{ system_label|upper }}</span>
+            <span>{{ size_human }}</span>
+            {% if category %}<span>{{ category|upper }}</span>{% endif %}
+          </div>
+
+          {% if metadata %}
+            {% if metadata.description %}
+            <div class="detail-field">
+              <div class="detail-field-label">DESCRIPTION</div>
+              <div class="detail-field-value">{{ metadata.description }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.genre %}
+            <div class="detail-field">
+              <div class="detail-field-label">GENRE</div>
+              <div class="detail-field-value">{{ metadata.genre }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.developer or metadata.publisher %}
+            <div class="detail-field">
+              <div class="detail-field-label">DEVELOPER / PUBLISHER</div>
+              <div class="detail-field-value">{{ metadata.developer or '?' }} / {{ metadata.publisher or '?' }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.release_date %}
+            <div class="detail-field">
+              <div class="detail-field-label">RELEASE DATE</div>
+              <div class="detail-field-value">{{ metadata.release_date[:4] if metadata.release_date|length >= 4 else metadata.release_date }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.players %}
+            <div class="detail-field">
+              <div class="detail-field-label">PLAYERS</div>
+              <div class="detail-field-value">{{ metadata.players }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.rating %}
+            <div class="detail-field">
+              <div class="detail-field-label">RATING</div>
+              <div class="detail-field-value detail-rating">{{ "%.0f"|format(metadata.rating * 100) }}%</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.screenshot_url %}
+            <img class="detail-screenshot" src="{{ metadata.screenshot_url }}" alt="Screenshot" loading="lazy">
+            {% endif %}
+          {% else %}
+          <p class="detail-empty-meta">
+            &gt;&gt; NO METADATA YET. IF SKYSCRAPER IS INSTALLED, HIT [ RESCAN ]
+            BACK IN THE VAULT TO SCRAPE DESCRIPTION, GENRE, AND OTHER DETAILS
+            FOR THIS TITLE.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <template id="cover-fallback-tpl"><div class="detail-cover-fallback"><svg viewBox="0 0 24 24"><use href="#icon-cart"></use></svg></div></template>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="icon-cart" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12a1 1 0 0 1 1 1v3h-2V5H7v16h10v-2h2v3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 6h5v2h-5v3l4-2.5V15l-4-2.5V16h-2V9h2Z"/></symbol>
+      <symbol id="icon-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 14.9 8.6 22 9.3 16.7 14 18.2 21 12 17.4 5.8 21 7.3 14 2 9.3 9.1 8.6 12 2Z"/></symbol>
+      <symbol id="icon-star-outline" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.4" d="M12 2 14.9 8.6 22 9.3 16.7 14 18.2 21 12 17.4 5.8 21 7.3 14 2 9.3 9.1 8.6 12 2Z"/></symbol>
+    </defs>
+  </svg>
+
+  <script>
+    document.getElementById("fav-btn").addEventListener("click", async function () {
+      const btn = this;
+      const system = btn.getAttribute("data-system");
+      const filename = btn.getAttribute("data-filename");
+      try {
+        const res = await fetch("/api/favorites/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ system, filename }),
+        });
+        const result = await res.json();
+        btn.classList.toggle("active", result.favorite);
+        document.getElementById("fav-label").textContent = result.favorite ? "FAVORITED" : "ADD TO FAVORITES";
+        btn.querySelector("use").setAttribute("href", result.favorite ? "#icon-star" : "#icon-star-outline");
+      } catch (e) { /* non-fatal */ }
+    });
+  </script>
+</body>
+</html>

@@ -292,6 +292,25 @@ html, body {
 
 .rom-title { color: var(--fg-bright); }
 
+.thumb-link { display: inline-block; }
+.thumb-link:hover .thumb,
+.thumb-link:hover .thumb-fallback,
+.thumb-link:hover .grid-card-art,
+.thumb-link:hover .grid-card-art-fallback {
+  outline: 1px solid var(--fg);
+}
+
+.title-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--fg-dim);
+}
+.title-link:hover, .title-link:focus-visible {
+  color: var(--fg-bright);
+  border-bottom-color: var(--fg);
+  outline: none;
+}
+
 .rom-category {
   display: inline-block;
   margin-left: 8px;

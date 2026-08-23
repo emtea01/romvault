@@ -38,12 +38,12 @@ fi
 
 echo ">> Skyscraper installed at /usr/local/bin/Skyscraper"
 
-echo ">> Installing ROM Vault's cover-only artwork recipe..."
+echo ">> Installing ROM Vault's cover-only artwork recipe (root -- manual CLI use)..."
 mkdir -p /root/.skyscraper
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cp "${SCRIPT_DIR}/skyscraper-artwork.xml" /root/.skyscraper/romvault-artwork.xml
 
-echo ">> Writing baseline config.ini (safe defaults; scrape_art.sh overrides per-run paths)..."
+echo ">> Writing baseline config.ini (root)..."
 cat > /root/.skyscraper/config.ini <<'EOF'
 [main]
 frontend="emulationstation"
@@ -54,10 +54,30 @@ lang="en"
 langPrios="en"
 EOF
 
+# The app itself runs as the unprivileged 'romvault' service user (see
+# romvault.service), which can't read/write anything under /root -- so it
+# needs its own separate Skyscraper config/cache location, owned by that
+# user, for the automatic scraping triggered by [ RESCAN ].
+echo ">> Installing the same recipe for the app's automatic scraping (romvault user)..."
+mkdir -p /opt/romvault/skyscraper-home/.skyscraper
+cp "${SCRIPT_DIR}/skyscraper-artwork.xml" /opt/romvault/skyscraper-home/.skyscraper/romvault-artwork.xml
+cat > /opt/romvault/skyscraper-home/.skyscraper/config.ini <<'EOF'
+[main]
+frontend="emulationstation"
+artworkXml="/opt/romvault/skyscraper-home/.skyscraper/romvault-artwork.xml"
+region="us"
+regionPrios="us,eu,wor,jp"
+lang="en"
+langPrios="en"
+EOF
+chown -R romvault:romvault /opt/romvault/skyscraper-home
+mkdir -p /opt/romvault/skyscraper-work
+chown -R romvault:romvault /opt/romvault/skyscraper-work
+
 echo ""
 echo ">> Done. Skyscraper is installed."
 echo ">> Optional but recommended: create a free account at https://www.screenscraper.fr"
-echo "   (raises your rate limit a lot) then set credentials before scraping:"
-echo "     export SCREENSCRAPER_USER=youruser"
-echo "     export SCREENSCRAPER_PASS=yourpass"
-echo ">> Then run: ./scrape_art.sh nes snes gba     (or: ./scrape_art.sh all)"
+echo "   (raises your rate limit a lot), then set it from the app itself:"
+echo "   log in as an admin -> [ SETTINGS ] -> ScreenScraper username/password."
+echo ">> Automatic scraping now runs on every [ RESCAN ] -- no manual step needed."
+echo ">> (scripts/scrape_art.sh is still available for manual CLI use as root, if preferred.)"

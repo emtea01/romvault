@@ -590,6 +590,39 @@ def api_savestate(system, filename):
     return Response(saved["state"], mimetype="application/octet-stream")
 
 
+@app.route("/game/<system>/<path:filename>")
+@login_required
+def game_detail(system, filename):
+    if system not in SYSTEMS:
+        abort(404)
+    path = _resolve_rom_path(system, filename)
+    meta = SYSTEMS[system]
+
+    rel = path.relative_to(roms_root() / system)
+    category = str(rel.parent) if rel.parent != Path(".") else ""
+
+    art_index = _build_boxart_index(system)
+    stem = path.stem
+    art_url = art_index.get(stem)
+
+    metadata = db.get_game_metadata(system, filename)
+    is_favorite = filename in {f["filename"] for f in db.get_favorites(session["user_id"]) if f["system"] == system}
+
+    return render_template(
+        "game_detail.html",
+        system=system,
+        system_label=meta["label"],
+        filename=filename,
+        title=(metadata or {}).get("title") or _clean_title(path.name),
+        category=category,
+        size_human=_human_size(path.stat().st_size),
+        art_url=art_url,
+        playable=meta["core"] is not None,
+        metadata=metadata,
+        is_favorite=is_favorite,
+    )
+
+
 @app.route("/download/<system>/<path:filename>")
 @login_required
 def download(system, filename):
