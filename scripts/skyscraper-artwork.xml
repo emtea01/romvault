@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ROM Vault's Skyscraper artwork recipe.
-  Raw box cover for grid/list thumbnails, plus a raw screenshot for the
-  game detail page. No compositing, no collage, no gamebox 3D effect --
-  just the source images as scraped.
+  Per Skyscraper's own docs (ARTWORK.md / FAQ.md): an output with no
+  nested layer exports that resource type raw, unresized and
+  uncomposited. "resource" is only a valid attribute on layer, never on
+  output directly; this file's first version incorrectly put it on
+  output, which Skyscraper rejects as a parse error.
 -->
 <artwork>
-  <output type="cover" resource="cover"/>
-  <output type="screenshot" resource="screenshot"/>
+  <output type="cover"/>
+  <output type="screenshot"/>
 </artwork>

@@ -16,7 +16,7 @@ param(
     [string]$LocalPath = "$PSScriptRoot"
 )
 
-$DefaultContainerIp = "10.0.1.122"   # <-- set this once to your container's IP
+$DefaultContainerIp = "CHANGE-ME"   # <-- set this once to your container's IP
 
 if ([string]::IsNullOrWhiteSpace($ContainerIp)) {
     $ContainerIp = $DefaultContainerIp
