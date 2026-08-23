@@ -19,6 +19,14 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/opt/romvault
 ReadOnlyPaths=/mnt/roms
+# /mnt/roms/boxart specifically needs to stay read-write, for manual box
+# art drops and for Skyscraper's automatic scraping -- listed after the
+# broader ReadOnlyPaths above so it takes precedence for that subtree
+# specifically (systemd processes these path directives in declaration
+# order; a later, more specific entry overrides an earlier, broader one
+# for the overlapping subtree). Everything else under /mnt/roms (the
+# actual ROM files) stays read-only.
+ReadWritePaths=/mnt/roms/boxart
 
 [Install]
 WantedBy=multi-user.target

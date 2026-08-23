@@ -36,7 +36,14 @@ ARTWORK_XML = Path(os.environ.get(
     "SKYSCRAPER_ARTWORK_XML", str(SKYSCRAPER_HOME / ".skyscraper" / "romvault-artwork.xml")
 ))
 BOXART_EXTS = (".png", ".jpg", ".jpeg")
-SUBPROCESS_TIMEOUT_SECONDS = 1800  # safety net against a hung Skyscraper process
+# A large first-ever backlog scrape on a rate-limited ScreenScraper
+# account can genuinely take hours for a single system's gather phase
+# (observed: a ~3,700-file GBA batch still running, not hung, at the
+# 30-minute mark with a 1-thread account limit) -- this is a safety net
+# against a truly hung/frozen process, not a realistic expected duration.
+# Override via SKYSCRAPER_TIMEOUT_SECONDS if even 4 hours isn't enough
+# for a very large library.
+SUBPROCESS_TIMEOUT_SECONDS = int(os.environ.get("SKYSCRAPER_TIMEOUT_SECONDS", "14400"))  # 4 hours
 
 _state = {
     "running": False,
@@ -174,11 +181,24 @@ def _run(roms_root, boxart_root, missing_by_system, ss_user, ss_pass):
             with _lock:
                 _state["system"] = system
 
-            _scrape_one_system(roms_root, boxart_root, system, filenames, ss_user, ss_pass)
-
-            with _lock:
-                _state["done"] += len(filenames)
+            try:
+                _scrape_one_system(roms_root, boxart_root, system, filenames, ss_user, ss_pass)
+            except Exception as e:
+                # A failure in one system (e.g. a read-only mount for that
+                # system's art folder) must not abort every other
+                # system's scrape too -- log it, record a warning, and
+                # move on to the next system. Note: _scrape_one_system
+                # increments "done" per-batch internally now, so whatever
+                # batches completed before this exception are already
+                # correctly counted -- nothing to add here.
+                msg = f"{system}: unhandled error -- {e}"
+                _log(f"{msg}\n{traceback.format_exc()}")
+                with _lock:
+                    _state["warnings"].append(msg)
     except Exception as e:
+        # Catches anything outside the per-system try above (e.g. a bug
+        # in iterating missing_by_system itself) -- should be rare, but
+        # still shouldn't be allowed to leave "running" stuck True.
         with _lock:
             _state["error"] = f"{e}\n{traceback.format_exc()}"
     finally:
@@ -188,7 +208,44 @@ def _run(roms_root, boxart_root, missing_by_system, ss_user, ss_pass):
             _state["last_run"] = time.time()
 
 
+BATCH_SIZE = int(os.environ.get("SKYSCRAPER_BATCH_SIZE", "20"))
+
+
 def _scrape_one_system(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
+    """Splits a system's missing ROMs into small batches and runs the full
+    gather -> generate -> copy -> metadata cycle per batch, rather than one
+    giant gather across potentially thousands of files. This means:
+      - Art starts appearing after the first batch (~20 roms), not after
+        the entire system finishes -- which could otherwise be hours away.
+      - If something interrupts a run, only the current batch is lost,
+        not the whole system's progress.
+      - `done` advances smoothly batch by batch instead of jumping once
+        at the very end."""
+    batches = [filenames[i:i + BATCH_SIZE] for i in range(0, len(filenames), BATCH_SIZE)]
+    _log(f"{system}: {len(filenames)} rom(s) split into {len(batches)} batch(es) of up to {BATCH_SIZE}")
+
+    for batch_num, batch in enumerate(batches, 1):
+        _log(f"{system}: starting batch {batch_num}/{len(batches)} ({len(batch)} rom(s))")
+        try:
+            _scrape_batch(roms_root, boxart_root, system, batch, ss_user, ss_pass)
+        except Exception as e:
+            # One batch's failure (e.g. a transient issue parsing that
+            # batch's gamelist.xml) must not prevent the *rest* of this
+            # system's batches from still being attempted -- that would
+            # undermine the whole point of batching. A structural failure
+            # (e.g. the destination folder is read-only) will naturally
+            # keep failing every subsequent batch too and surface as a
+            # repeated warning, which is still far better than silently
+            # stopping partway with no indication why.
+            msg = f"{system} batch {batch_num}/{len(batches)}: unhandled error -- {e}"
+            _log(f"{msg}\n{traceback.format_exc()}")
+            with _lock:
+                _state["warnings"].append(msg)
+        with _lock:
+            _state["done"] += len(batch)
+
+
+def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
     real_system_dir = Path(roms_root) / system
     staging = WORK_DIR / system / "input"
     gamelist_dir = WORK_DIR / system / "gamelist"

@@ -289,11 +289,24 @@ def _maybe_trigger_scrape(library):
 
 def _watch_scrape_then_rescan():
     """Newly-scraped art won't show up in art_url until another library
-    scan runs (art_url is computed at walk time). Poll until scraping
-    finishes, then trigger one more scan automatically so results appear
-    without needing a second manual RESCAN click."""
-    while scraper.status()["running"]:
-        time.sleep(5)
+    scan runs (art_url is computed at walk time). With scraping now
+    batched (see scraper.py's BATCH_SIZE), this polls for progress and
+    triggers a rescan whenever a batch has actually completed -- so art
+    appears incrementally as it's found, not just once the entire
+    (potentially hours-long) run finishes. Throttled to at most once
+    every 10s so this doesn't add repeated NAS directory-walk load on
+    every single batch completion."""
+    last_done = -1
+    while True:
+        s = scraper.status()
+        if s["done"] != last_done:
+            scan_library(force=True)
+            last_done = s["done"]
+        if not s["running"]:
+            break
+        time.sleep(10)
+    # Final rescan to catch anything that completed between the last
+    # poll and the run actually finishing.
     scan_library(force=True)
 
 
