@@ -383,7 +383,7 @@ def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
     else:
         _log(f"{system}: {copied} art file(s) copied to {dest}")
 
-    _parse_and_store_metadata(system, gamelist_dir, boxart_root, rename_map)
+    _parse_and_store_metadata(system, gamelist_dir, boxart_root, staging, rename_map)
 
     shutil.rmtree(staging, ignore_errors=True)
 
@@ -406,7 +406,7 @@ def _extract_relevant_gather_output(result) -> str:
     return " | ".join(lines[-3:])[-400:] if lines else ""
 
 
-def _parse_and_store_metadata(system, gamelist_dir, boxart_root, rename_map=None):
+def _parse_and_store_metadata(system, gamelist_dir, boxart_root, staging, rename_map=None):
     """Skyscraper's generate phase already writes a gamelist.xml (standard
     EmulationStation format) alongside the media it produces -- this was
     previously just discarded. Parses it and stores description, genre,
@@ -427,6 +427,14 @@ def _parse_and_store_metadata(system, gamelist_dir, boxart_root, rename_map=None
         return
 
     screenshots_dir = Path(boxart_root) / system / "screenshots"
+    # Confirmed against real output: Skyscraper writes <path> as the full
+    # ABSOLUTE staging path (e.g. "/opt/romvault/skyscraper-work/gba/
+    # input/1 USA - P-S/Pac-Man Collection (USA).gba"), not the "./relative"
+    # form the standard EmulationStation convention normally uses. Strip
+    # the staging prefix to recover the same relative path used for the
+    # symlinks -- fall back to the "./" strip too, in case this varies
+    # across Skyscraper versions/configs.
+    staging_prefix = str(staging) + os.sep
     stored = 0
 
     for game in tree.getroot().findall("game"):
@@ -434,7 +442,9 @@ def _parse_and_store_metadata(system, gamelist_dir, boxart_root, rename_map=None
         if path_el is None or not path_el.text:
             continue
         filename = path_el.text
-        if filename.startswith("./"):
+        if filename.startswith(staging_prefix):
+            filename = filename[len(staging_prefix):]
+        elif filename.startswith("./"):
             filename = filename[2:]
         # If this rom was renamed for searching (generic filename case
         # like game.iso), gamelist.xml references the renamed name --
