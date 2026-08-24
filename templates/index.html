@@ -29,13 +29,16 @@
         </div>
         <div class="topbar-controls">
           <span id="rom-count" class="stat">0 TITLES INDEXED</span>
-          <button id="view-toggle" class="btn-ghost" title="Switch list / grid view">[ GRID ]</button>
-          <button id="rescan-btn" class="btn-ghost" title="Rescan NAS library">[ RESCAN ]</button>
-          <button id="theme-toggle" class="btn-ghost" title="Switch phosphor color">[ AMBER ]</button>
-          {% if is_admin %}<a href="{{ url_for('admin_users') }}" class="btn-ghost" title="Manage users">[ USERS ]</a>{% endif %}
-          {% if is_admin %}<a href="{{ url_for('admin_settings') }}" class="btn-ghost" title="Settings">[ SETTINGS ]</a>{% endif %}
-          <span class="stat">{{ username }}</span>
-          <a href="{{ url_for('logout') }}" class="btn-ghost" title="Log out">[ LOGOUT ]</a>
+          <button id="nav-menu-toggle" class="btn-ghost nav-menu-toggle" title="Menu" aria-expanded="false" aria-controls="nav-menu">[ MENU ]</button>
+          <div id="nav-menu" class="nav-menu">
+            <button id="view-toggle" class="btn-ghost" title="Switch list / grid view">[ GRID ]</button>
+            <button id="rescan-btn" class="btn-ghost" title="Rescan NAS library">[ RESCAN ]</button>
+            <button id="theme-toggle" class="btn-ghost" title="Switch phosphor color">[ AMBER ]</button>
+            {% if is_admin %}<a href="{{ url_for('admin_users') }}" class="btn-ghost" title="Manage users">[ USERS ]</a>{% endif %}
+            {% if is_admin %}<a href="{{ url_for('admin_settings') }}" class="btn-ghost" title="Settings">[ SETTINGS ]</a>{% endif %}
+            <span class="stat">{{ username }}</span>
+            <a href="{{ url_for('logout') }}" class="btn-ghost" title="Log out">[ LOGOUT ]</a>
+          </div>
         </div>
       </header>
 

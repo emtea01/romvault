@@ -15,6 +15,8 @@
   const viewToggle = document.getElementById("view-toggle");
   const rescanBtn = document.getElementById("rescan-btn");
   const mountStatus = document.getElementById("mount-status");
+  const navMenuToggle = document.getElementById("nav-menu-toggle");
+  const navMenu = document.getElementById("nav-menu");
   const pagination = document.getElementById("pagination");
   const pagePrev = document.getElementById("page-prev");
   const pageNext = document.getElementById("page-next");
@@ -476,6 +478,36 @@
     localStorage.setItem(VIEW_KEY, viewMode);
     viewToggle.textContent = viewMode === "grid" ? "[ LIST ]" : "[ GRID ]";
     applyFiltersAndRender(true);
+  });
+
+  // Mobile nav menu (collapses RESCAN/theme/view/USERS/SETTINGS/LOGOUT
+  // behind [ MENU ] on narrow screens -- see the max-width:640px rules
+  // in style.css. No-op on desktop, where .nav-menu-toggle stays hidden
+  // and .nav-menu is just always visible.)
+  function closeNavMenu() {
+    navMenu.classList.remove("open");
+    navMenuToggle.setAttribute("aria-expanded", "false");
+  }
+
+  navMenuToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = navMenu.classList.toggle("open");
+    navMenuToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+
+  // Tapping any action inside the menu should close it afterward, same
+  // as a normal mobile dropdown -- otherwise it stays open covering the
+  // page after navigating away or toggling a setting.
+  navMenu.addEventListener("click", (e) => {
+    if (e.target.closest(".btn-ghost")) {
+      closeNavMenu();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (navMenu.classList.contains("open") && !navMenu.contains(e.target) && e.target !== navMenuToggle) {
+      closeNavMenu();
+    }
   });
 
   pagePrev.addEventListener("click", () => {

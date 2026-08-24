@@ -159,6 +159,64 @@ html, body {
   font-size: 13px;
 }
 
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-menu-toggle {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .topbar-controls {
+    position: relative;
+    flex-wrap: nowrap;
+  }
+
+  .nav-menu-toggle {
+    display: inline-block;
+  }
+
+  /* Collapsed by default on mobile -- all the action buttons (RESCAN,
+     theme/view toggles, USERS/SETTINGS, LOGOUT) live behind [ MENU ]
+     instead of wrapping into a messy multi-row button grid that also
+     overflowed the viewport on narrow screens. */
+  .nav-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--bg);
+    border: 1px solid var(--fg-dim);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    z-index: 40;
+  }
+
+  .nav-menu.open {
+    display: flex;
+  }
+
+  .nav-menu .btn-ghost,
+  .nav-menu .stat {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .nav-menu .btn-ghost:last-child,
+  .nav-menu .stat:last-child {
+    border-bottom: none;
+  }
+}
+
 .stat {
   color: var(--fg-dim);
   letter-spacing: 1px;
