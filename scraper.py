@@ -12,6 +12,7 @@ internal cache behavior to honor "skip what's already matched."
 """
 import fcntl
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -256,16 +257,49 @@ def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
             shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True, exist_ok=True)
 
+    # GameCube/Wii dumps are very often extracted as a generic filename
+    # (game.iso, disc.iso, etc.) with the actual title only present in the
+    # parent folder name -- e.g. "007 - Everything or Nothing (USA)/game.iso".
+    # Searching ScreenScraper for "game" obviously matches nothing. Since
+    # we control what filename Skyscraper actually sees (via this staging
+    # symlink), rename just the symlink to the parent folder's name when
+    # the real filename looks generic, and remember the mapping so
+    # results get filed back under the real filename afterward.
+    GENERIC_STEMS = {"game", "disc", "disk", "data", "boot", "default", "rom"}
+
+    def _sanitize_for_filename(name: str) -> str:
+        # Parent folder names are already valid folder names, but a couple
+        # of characters are worth stripping defensively for a filename.
+        return re.sub(r'[/\\:*?"<>|]', "_", name).strip() or "renamed"
+
     # Symlink only the missing ROMs into the staging folder, preserving
     # category subfolder structure, so Skyscraper's own recursive scan
     # only ever sees the gap -- not the whole library.
     linked_any = False
+    rename_map = {}  # renamed symlink stem -> real relative filename
     for fname in filenames:
         src = real_system_dir / fname
         if not src.is_file():
             continue
-        dst = staging / fname
-        dst.parent.mkdir(parents=True, exist_ok=True)
+
+        rel_path = Path(fname)
+        is_generic = rel_path.stem.lower() in GENERIC_STEMS and rel_path.parent != Path(".")
+
+        if is_generic:
+            descriptive_stem = _sanitize_for_filename(rel_path.parent.name)
+            new_name = f"{descriptive_stem}{rel_path.suffix}"
+            dst = staging / new_name
+            if new_name in rename_map and rename_map[new_name] != fname:
+                # Two different generic-named roms whose parent folders
+                # happen to sanitize to the same name -- rare, but don't
+                # silently let the second one clobber the first's symlink.
+                _log(f"{system}: skipping '{fname}' -- renamed name '{new_name}' collides with another rom in this batch")
+                continue
+            rename_map[new_name] = fname
+        else:
+            dst = staging / fname
+            dst.parent.mkdir(parents=True, exist_ok=True)
+
         try:
             if not dst.exists():
                 os.symlink(src, dst)
@@ -280,11 +314,14 @@ def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
             _state["warnings"].append(msg)
         return
 
+    if rename_map:
+        _log(f"{system}: {len(rename_map)} generic-named rom(s) (game.iso etc.) renamed to their folder name for searching")
+
     cred_args = []
     if ss_user and ss_pass:
         cred_args = ["-u", f"{ss_user}:{ss_pass}"]
 
-    _run_skyscraper(
+    gather_result = _run_skyscraper(
         [SKYSCRAPER_BIN, "-p", system, "-s", "screenscraper",
          "-i", str(staging), *cred_args, "--flags", "unattend", "-t", "4"],
         system, "gather",
@@ -303,6 +340,9 @@ def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
     dest = Path(boxart_root) / system
     dest.mkdir(parents=True, exist_ok=True)
     copied = 0
+    # Map by stem only (not full filename) -- art output extensions
+    # (.png/.jpg) differ from the rom's own extension in rename_map's keys.
+    rename_map_by_stem = {Path(new_name).stem: real_fname for new_name, real_fname in rename_map.items()}
     for img in media_dir.rglob("*"):
         if img.is_file() and img.suffix.lower() in BOXART_EXTS:
             # Preserve the type subfolder (covers/, screenshots/) rather
@@ -313,31 +353,66 @@ def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
             subfolder = img.parent.name
             target_dir = dest / subfolder
             target_dir.mkdir(parents=True, exist_ok=True)
+            # If this rom was renamed for searching (generic filename
+            # case), file the result back under the REAL filename's stem
+            # so ROM Vault's normal lookup-by-rom-stem still finds it.
+            real_fname = rename_map_by_stem.get(img.stem)
+            out_name = f"{Path(real_fname).stem}{img.suffix}" if real_fname else img.name
             try:
-                shutil.copy2(img, target_dir / img.name)
+                shutil.copy2(img, target_dir / out_name)
                 copied += 1
             except OSError:
                 continue
 
     if copied == 0:
-        msg = f"{system}: ran against {len(filenames)} rom(s) but produced no art files -- check ScreenScraper credentials/rate limit, or that these titles actually exist in ScreenScraper's database"
+        # Skyscraper exited 0 (no error), but nothing came out of it --
+        # the real reason is usually somewhere in what it printed during
+        # the gather phase (a quota message, a per-game "not found", etc),
+        # which a clean exit code alone doesn't surface. Pull out the most
+        # relevant-looking lines rather than a generic hint, so this is
+        # actually diagnosable instead of just "try checking credentials".
+        detail = _extract_relevant_gather_output(gather_result)
+        msg = f"{system}: ran against {len(filenames)} rom(s) but produced no art files"
+        if detail:
+            msg += f" -- gather output: {detail}"
+        else:
+            msg += " -- check ScreenScraper credentials/rate limit, or that these titles actually exist in ScreenScraper's database"
         _log(msg)
         with _lock:
             _state["warnings"].append(msg)
     else:
         _log(f"{system}: {copied} art file(s) copied to {dest}")
 
-    _parse_and_store_metadata(system, gamelist_dir, boxart_root)
+    _parse_and_store_metadata(system, gamelist_dir, boxart_root, rename_map)
 
     shutil.rmtree(staging, ignore_errors=True)
 
 
-def _parse_and_store_metadata(system, gamelist_dir, boxart_root):
+def _extract_relevant_gather_output(result) -> str:
+    """Skyscraper prints a lot of hint/decoration text even on a totally
+    normal run. When a batch produces zero art despite exiting 0, pull out
+    whichever lines actually look diagnostic (quota/limit/error/found
+    mentions) rather than dumping the whole verbose output or just a
+    generic hint. Falls back to the last couple of lines if nothing
+    keyword-like is found."""
+    if result is None:
+        return ""
+    text = (result.stdout or "") + "\n" + (result.stderr or "")
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    keywords = ("quota", "limit", "error", "found", "denied", "credential", "thread")
+    relevant = [l for l in lines if any(k in l.lower() for k in keywords)]
+    if relevant:
+        return " | ".join(relevant[-5:])[-600:]
+    return " | ".join(lines[-3:])[-400:] if lines else ""
+
+
+def _parse_and_store_metadata(system, gamelist_dir, boxart_root, rename_map=None):
     """Skyscraper's generate phase already writes a gamelist.xml (standard
     EmulationStation format) alongside the media it produces -- this was
     previously just discarded. Parses it and stores description, genre,
     developer, publisher, release date, and rating per ROM, plus links up
     the screenshot copied above."""
+    rename_map = rename_map or {}
     gamelist_path = gamelist_dir / "gamelist.xml"
     if not gamelist_path.is_file():
         return
@@ -361,6 +436,11 @@ def _parse_and_store_metadata(system, gamelist_dir, boxart_root):
         filename = path_el.text
         if filename.startswith("./"):
             filename = filename[2:]
+        # If this rom was renamed for searching (generic filename case
+        # like game.iso), gamelist.xml references the renamed name --
+        # translate back to the real relative filename so metadata gets
+        # attached to the rom ROM Vault actually knows about.
+        filename = rename_map.get(filename, filename)
 
         def _text(tag):
             el = game.find(tag)

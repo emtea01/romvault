@@ -217,6 +217,7 @@ def _run_scan():
                 continue
 
             art_index = _build_boxart_index(system_key)
+            scraped_titles = db.get_titles_for_system(system_key)
             exts = set(meta["ext"])
 
             for dirpath, _dirnames, filenames in os.walk(system_dir):
@@ -230,14 +231,20 @@ def _run_scan():
                     except OSError:
                         continue
                     rel = full_path.relative_to(system_dir)
+                    rel_str = str(rel)
                     category = str(rel.parent) if rel.parent != Path(".") else ""
                     library.append({
                         "system": system_key,
                         "system_label": meta["label"],
                         "playable": meta["core"] is not None,
                         "core": meta["core"],
-                        "filename": str(rel),
-                        "title": _clean_title(fname),
+                        "filename": rel_str,
+                        # Prefer the scraped title (e.g. "007: Everything
+                        # or Nothing") over one derived from the raw
+                        # filename -- matters most for GC/Wii, where the
+                        # actual file is very often a generic name like
+                        # game.iso with no useful title info of its own.
+                        "title": scraped_titles.get(rel_str) or _clean_title(fname),
                         "category": category,
                         "size": size,
                         "art_url": art_index.get(stem),

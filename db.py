@@ -308,3 +308,15 @@ def get_game_metadata(system: str, filename: str):
             (system, filename),
         ).fetchone()
         return dict(row) if row else None
+
+
+def get_titles_for_system(system: str) -> dict:
+    """Bulk {filename: title} lookup for a whole system in one query --
+    used to prefer the scraped title over the raw filename in list/grid
+    views, without a DB call per ROM during a library scan."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT filename, title FROM game_metadata WHERE system = ? AND title IS NOT NULL",
+            (system,),
+        ).fetchall()
+        return {r["filename"]: r["title"] for r in rows}
