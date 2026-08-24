@@ -572,15 +572,19 @@ html, body {
 
 .grid-card-art {
   width: 100%;
-  aspect-ratio: 3 / 4;
-  object-fit: cover;
+  aspect-ratio: 1 / 1;
+  /* contain (not cover) so the full box scan is always visible,
+     letterboxed if needed, rather than cropped -- box art scans (GBA/GC
+     especially, which often include the spine) rarely match a clean
+     portrait crop, so "cover" was cutting into the artwork. */
+  object-fit: contain;
   background: var(--bg-alt);
   display: block;
 }
 
 .grid-card-art-fallback {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   background: var(--bg-alt);
   display: flex;
   align-items: center;
