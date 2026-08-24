@@ -177,6 +177,17 @@ html, body {
 
   .nav-menu-toggle {
     display: inline-block;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* rom-count is the one allowed to shrink/wrap when the status text is
+     long (e.g. "FETCHING BOX ART (GBA): 0/4320") -- without this, the
+     flex row squeezed the MENU button's own box down instead, wrapping
+     its label onto two lines. */
+  #rom-count {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   /* Collapsed by default on mobile -- all the action buttons (RESCAN,
