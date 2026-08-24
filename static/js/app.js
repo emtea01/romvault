@@ -15,14 +15,20 @@
   const viewToggle = document.getElementById("view-toggle");
   const rescanBtn = document.getElementById("rescan-btn");
   const mountStatus = document.getElementById("mount-status");
+  const pagination = document.getElementById("pagination");
+  const pagePrev = document.getElementById("page-prev");
+  const pageNext = document.getElementById("page-next");
+  const pageIndicator = document.getElementById("page-indicator");
 
   const VIEW_KEY = "romvault:view";
   const THEME_KEY = "romvault:theme";
+  const PAGE_SIZE = 25;
 
   let allRoms = [];          // full library, fetched once
   let currentTab = "all";    // "all" | "favorites" | "recent" | system key
   let currentQuery = "";
   let viewMode = localStorage.getItem(VIEW_KEY) || "list";
+  let currentPage = 1;       // 1-indexed
 
   // Favorites/recent now live server-side, tied to the logged-in account,
   // so they follow you across devices. Fetched once and kept in memory;
@@ -222,7 +228,7 @@
   // -------------------------------------------------------------------
   // Filtering
   // -------------------------------------------------------------------
-  function applyFiltersAndRender() {
+  function applyFiltersAndRender(resetPage = false) {
     let roms;
 
     if (currentTab === "favorites") {
@@ -241,7 +247,16 @@
       roms = roms.filter((r) => r.title.toLowerCase().includes(q) || (r.category || "").toLowerCase().includes(q));
     }
 
-    render(roms);
+    if (resetPage) currentPage = 1;
+
+    const totalPages = Math.max(1, Math.ceil(roms.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const pageStart = (currentPage - 1) * PAGE_SIZE;
+    const pageSlice = roms.slice(pageStart, pageStart + PAGE_SIZE);
+
+    render(pageSlice, roms.length, totalPages);
   }
 
   // -------------------------------------------------------------------
@@ -261,16 +276,33 @@
     return `<div class="${fallbackCls}">${iconSvg("cart")}</div>`;
   };
 
-  function render(roms) {
-    romCount.textContent = humanCount(roms.length);
+  function render(roms, totalCount, totalPages) {
+    // totalCount is the full filtered result count (for the "N TITLES
+    // INDEXED" label); roms here is just the current page's slice to
+    // actually render as DOM rows/cards, so a filtered set of thousands
+    // doesn't mean thousands of DOM nodes.
+    if (totalCount === undefined) totalCount = roms.length;
+    if (totalPages === undefined) totalPages = 1;
 
-    if (roms.length === 0) {
+    romCount.textContent = humanCount(totalCount);
+
+    if (totalCount === 0) {
       emptyState.classList.remove("hidden");
+      pagination.classList.add("hidden");
       listingBody.innerHTML = "";
       gridView.innerHTML = "";
       return;
     }
     emptyState.classList.add("hidden");
+
+    if (totalPages > 1) {
+      pagination.classList.remove("hidden");
+      pageIndicator.textContent = `PAGE ${currentPage} / ${totalPages}`;
+      pagePrev.disabled = currentPage <= 1;
+      pageNext.disabled = currentPage >= totalPages;
+    } else {
+      pagination.classList.add("hidden");
+    }
 
     if (viewMode === "grid") {
       listView.classList.add("hidden");
@@ -418,7 +450,7 @@
     const btn = e.target.closest(".tab");
     if (!btn) return;
     setActiveTab(btn.getAttribute("data-system"));
-    applyFiltersAndRender();
+    applyFiltersAndRender(true);
   });
 
   let debounceTimer = null;
@@ -426,7 +458,7 @@
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       currentQuery = searchInput.value.trim();
-      applyFiltersAndRender();
+      applyFiltersAndRender(true);
     }, 120);
   });
 
@@ -443,7 +475,21 @@
     viewMode = viewMode === "grid" ? "list" : "grid";
     localStorage.setItem(VIEW_KEY, viewMode);
     viewToggle.textContent = viewMode === "grid" ? "[ LIST ]" : "[ GRID ]";
+    applyFiltersAndRender(true);
+  });
+
+  pagePrev.addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      applyFiltersAndRender();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  });
+
+  pageNext.addEventListener("click", () => {
+    currentPage++;
     applyFiltersAndRender();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   rescanBtn.addEventListener("click", async () => {
