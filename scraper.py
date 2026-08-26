@@ -45,6 +45,14 @@ BOXART_EXTS = (".png", ".jpg", ".jpeg")
 # Override via SKYSCRAPER_TIMEOUT_SECONDS if even 4 hours isn't enough
 # for a very large library.
 SUBPROCESS_TIMEOUT_SECONDS = int(os.environ.get("SKYSCRAPER_TIMEOUT_SECONDS", "14400"))  # 4 hours
+# Lowered from Skyscraper's old hardcoded "-t 4" -- 4 parallel gather
+# threads plus the concurrent library-scan os.walk was saturating NFS
+# bandwidth/latency badly enough that ordinary /rom/<file> reads (i.e.
+# actually playing a game) would stall behind the contention while a
+# scrape was in progress. 2 is a starting point, not a proven-optimal
+# value -- raise via SKYSCRAPER_GATHER_THREADS if the NAS/network can
+# clearly take more without games stalling during a scrape.
+SKYSCRAPER_GATHER_THREADS = int(os.environ.get("SKYSCRAPER_GATHER_THREADS", "2"))
 
 _state = {
     "running": False,
@@ -323,7 +331,7 @@ def _scrape_batch(roms_root, boxart_root, system, filenames, ss_user, ss_pass):
 
     gather_result = _run_skyscraper(
         [SKYSCRAPER_BIN, "-p", system, "-s", "screenscraper",
-         "-i", str(staging), *cred_args, "--flags", "unattend", "-t", "4"],
+         "-i", str(staging), *cred_args, "--flags", "unattend", "-t", str(SKYSCRAPER_GATHER_THREADS)],
         system, "gather",
     )
 

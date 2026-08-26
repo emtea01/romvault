@@ -10,7 +10,7 @@ User=romvault
 Group=romvault
 WorkingDirectory=/opt/romvault
 Environment=ROMS_PATH=/mnt/roms
-ExecStart=/opt/romvault/venv/bin/gunicorn -w 1 -b 0.0.0.0:5000 --timeout 1800 app:app
+ExecStart=/opt/romvault/venv/bin/gunicorn -w 1 -k gthread --threads 4 -b 0.0.0.0:5000 --timeout 1800 app:app
 Restart=on-failure
 RestartSec=5
 
