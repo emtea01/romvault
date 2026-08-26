@@ -684,6 +684,14 @@ def play(system, filename):
         abort(404)
     path = _resolve_rom_path(system, filename)
     db.record_recent(session["user_id"], system, filename)
+    # IMPORTANT: EmulatorJS's downloadStartState() treats ANY non-success
+    # response from EJS_loadStateURL (including an ordinary 404 for "no
+    # save yet") as a fatal startGameError(), not as "start fresh" --
+    # confirmed against EmulatorJS's own source (emulator.js,
+    # downloadStartState). So the URL must only be handed to the player
+    # when a save state actually exists; otherwise every first-ever play
+    # of any game hard-fails with "Error downloading game state".
+    has_savestate = db.get_savestate(session["user_id"], system, filename) is not None
     return render_template(
         "play.html",
         system=system,
@@ -692,6 +700,7 @@ def play(system, filename):
         filename=filename,
         rom_url=f"/rom/{system}/{filename}",
         savestate_url=f"/api/savestate/{system}/{filename}",
+        has_savestate=has_savestate,
         ejs_version=meta.get("ejs_version", DEFAULT_EJS_VERSION),
         threads=meta.get("threads", False),
     )

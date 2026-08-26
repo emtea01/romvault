@@ -56,10 +56,16 @@
     window.EJS_color = "#39ff6a";
     window.EJS_startOnLoaded = true;
 
-    // Auto-load a previously saved state from your account, if one
-    // exists. EmulatorJS fetches this URL itself on game start; a 404
-    // (no save yet) is a completely normal "new game" case.
+    // Auto-load a previously saved state from your account, but only if
+    // one actually exists. EmulatorJS's downloadStartState() treats ANY
+    // non-success response from EJS_loadStateURL -- including an
+    // ordinary 404 for "no save yet" -- as a fatal startGameError(), not
+    // as "start fresh". So this must stay unset (undefined) rather than
+    // pointing at a URL that 404s, or every first-ever play of a game
+    // hard-fails with "Error downloading game state".
+    {% if has_savestate %}
     window.EJS_loadStateURL = SAVESTATE_URL;
+    {% endif %}
 
     // Whenever a save state is made (via the player's own Save State
     // button), push it to your account so it follows you across devices.
