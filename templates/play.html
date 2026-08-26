@@ -45,6 +45,9 @@
     window.EJS_player = "#game";
     window.EJS_gameUrl = "{{ rom_url }}";
     window.EJS_core = "{{ core }}";
+    // Required by cores like azahar (3DS) that need SharedArrayBuffer;
+    // harmless no-op for cores that don't need it.
+    window.EJS_threads = {{ "true" if threads else "false" }};
     window.EJS_gameName = "{{ title }}";
     // Unique per system+rom (filename, not the display title, since
     // titles aren't guaranteed unique) so save states don't collide.

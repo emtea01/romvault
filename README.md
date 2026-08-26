@@ -14,6 +14,17 @@ this project builds on.
 core runs at usable speed yet, so in-browser GC/Wii emulation isn't
 realistic currently.
 
+**3DS (experimental)** — play in-browser + download, via EmulatorJS's
+`azahar` core. This core only ships on EmulatorJS's `nightly` CDN channel
+as of writing (added post-4.2.3, in the still-prerelease 4.3.0-pre line),
+so 3DS is pinned to `nightly` rather than the `stable` channel the other
+systems use — expect it to be less reliable, since nightly cores rebuild
+daily. It also requires `EJS_threads = true` (SharedArrayBuffer), which
+in turn requires the app to be served with `Cross-Origin-Opener-Policy`/
+`Cross-Origin-Embedder-Policy` headers set — if 3DS games fail to start
+while everything else works, check those headers first (e.g. add them at
+the reverse proxy if one is in front of ROM Vault).
+
 **New in iteration 5:**
 - **Automatic, incremental box art scraping.** Skyscraper runs in-app,
   triggered by **[ RESCAN ]** — no separate terminal session. Only scrapes
@@ -55,6 +66,7 @@ roms/
   nds/    *.nds
   gc/     *.iso  *.rvz  *.gcm
   wii/    *.iso  *.rvz  *.wbfs
+  3ds/    *.3ds  *.cci  *.cxi
 ```
 
 If folders are named differently, either rename them to match, or open an

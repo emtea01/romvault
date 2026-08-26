@@ -71,6 +71,16 @@ SYSTEMS = {
     "nds":  {"label": "Nintendo DS",                     "ext": [".nds", ".zip"],               "core": "nds", "ejs_version": "4.0.9"},
     "gc":   {"label": "GameCube",                        "ext": [".iso", ".rvz", ".gcm", ".zip"], "core": None},
     "wii":  {"label": "Wii",                             "ext": [".iso", ".rvz", ".wbfs", ".zip"], "core": None},
+    # EXPERIMENTAL: the "azahar" 3DS core only exists from EmulatorJS's
+    # 4.3.0-pre tag onward -- not yet in the "stable" CDN channel as of
+    # writing -- so this is pinned to "nightly" rather than
+    # DEFAULT_EJS_VERSION, same pattern as the NDS pin above. Treat this
+    # as genuinely unstable (nightly cores rebuild daily), not just a
+    # version pin like NDS's. "threads": True is required -- azahar will
+    # not start at all without EJS_threads = true, which itself requires
+    # the app to be served with COOP/COEP cross-origin-isolation headers
+    # for SharedArrayBuffer to be available in the browser.
+    "3ds":  {"label": "Nintendo 3DS",                    "ext": [".3ds", ".cci", ".cxi", ".zip"], "core": "azahar", "ejs_version": "nightly", "threads": True},
 }
 
 CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
@@ -683,6 +693,7 @@ def play(system, filename):
         rom_url=f"/rom/{system}/{filename}",
         savestate_url=f"/api/savestate/{system}/{filename}",
         ejs_version=meta.get("ejs_version", DEFAULT_EJS_VERSION),
+        threads=meta.get("threads", False),
     )
 
 
